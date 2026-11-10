@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gincana de Halloween — Protótipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#110c18;--s1:#1a1325;--s2:#231a31;--s3:#2e2240;--bd:#3a2c50;
+  --tx:#f4eefc;--mu:#a596bd;--or:#ff7a1a;--or2:#ffa45c;--pu:#9b5cff;
+  --gr:#3ddc84;--rd:#ff5470;--go:#ffcf4a;--r:16px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:Nunito,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--tx);
+  background:
+    radial-gradient(900px 500px at 85% -10%,rgba(155,92,255,.20),transparent 60%),
+    radial-gradient(700px 420px at -10% 0%,rgba(255,122,26,.13),transparent 60%),
+    var(--bg);
+  background-attachment:fixed;min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.45;
+}
+body.noscroll{overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+h1,h2,h3,h4{margin:0;line-height:1.2}
+h2{font-size:1.3rem}h3{font-size:1.04rem;display:flex;align-items:center;gap:8px}
+h4{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--mu);margin:18px 0 8px}
+p{margin:0}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+.spooky{font-family:Creepster,cursive;font-weight:400;letter-spacing:.05em;color:var(--or)}
+.muted{color:var(--mu)}.small{font-size:.86rem}
+.eyebrow{font-size:.74rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--mu)}
+.row{display:flex;align-items:center}.gap{gap:8px}.between{justify-content:space-between}.end{justify-content:flex-end}
+.wrap-row{flex-wrap:wrap;gap:12px}.mb{margin-bottom:14px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.two{grid-template-columns:1fr}}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--bd);background:var(--s3);
+  padding:11px 16px;border-radius:12px;font-weight:800;cursor:pointer;transition:transform .08s,background .15s,border-color .15s;white-space:nowrap;min-height:44px}
+.btn:hover{border-color:#5a4678}.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(180deg,var(--or2),var(--or));border-color:transparent;color:#1a0c00}
+.btn.danger{background:var(--rd);border-color:transparent;color:#fff}
+.btn.ghost{background:transparent}
+.btn.ghost.danger,.danger-tx{color:var(--rd)!important;background:transparent}
+.btn.sm{padding:7px 12px;min-height:36px;font-size:.86rem;border-radius:10px}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.link{background:none;border:0;color:var(--or2);font-weight:800;cursor:pointer;padding:4px}
+.icon-btn{background:var(--s3);border:1px solid var(--bd);width:36px;height:36px;border-radius:10px;cursor:pointer}
+
+/* Inputs */
+.fld{display:flex;flex-direction:column;gap:6px;font-size:.82rem;font-weight:800;color:var(--mu)}
+input[type=text],input:not([type]),input[type=number],input[type=password],select{
+  width:100%;background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:11px 12px;font-size:16px;font-weight:600;min-height:44px;outline:none}
+input:focus,select:focus{border-color:var(--or);box-shadow:0 0 0 3px rgba(255,122,26,.2)}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--mu) 50%),linear-gradient(135deg,var(--mu) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:34px}
+.lbl{font-size:.82rem;font-weight:800;color:var(--mu);margin-bottom:6px}
+.inline-form{display:grid;grid-template-columns:1.4fr 1fr auto;gap:10px;margin-top:12px}
+@media(max-width:620px){.inline-form{grid-template-columns:1fr}}
+
+/* Header & nav */
+.top{position:sticky;top:0;z-index:30;background:rgba(17,12,24,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--bd)}
+.top-in{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;padding-bottom:10px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand-ico{font-size:1.7rem;filter:drop-shadow(0 0 10px rgba(255,122,26,.5))}
+.brand-name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+.brand-sub{font-size:.78rem;color:var(--mu);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+.top-right{display:flex;align-items:center;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:.76rem;font-weight:900;white-space:nowrap}
+.pill i{width:8px;height:8px;border-radius:50%;background:currentColor;display:block}
+.pill-on{background:rgba(61,220,132,.13);color:var(--gr)}.pill-on i{animation:pulse 1.6s infinite}
+.pill-off{background:rgba(255,84,112,.13);color:var(--rd)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,132,.6)}100%{box-shadow:0 0 0 8px rgba(61,220,132,0)}}
+@media(max-width:560px){.pill span.txt{display:none}.top-right .btn{padding:7px 10px}}
+
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(26,19,37,.96);backdrop-filter:blur(12px);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom)}
+.tabs-in{display:flex;justify-content:space-around;padding:0 4px}
+.tab{flex:1;background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 2px 8px;font-size:.7rem;font-weight:800;color:var(--mu);cursor:pointer;border-top:2px solid transparent}
+.tab-ico{font-size:1.25rem;filter:grayscale(.7);opacity:.75}
+.tab.active{color:var(--or2);border-top-color:var(--or)}.tab.active .tab-ico{filter:none;opacity:1}
+.main{padding-top:18px;padding-bottom:110px;display:flex;flex-direction:column;gap:14px}
+@media(min-width:820px){
+  .tabs{position:sticky;top:61px;bottom:auto;border-top:0;border-bottom:1px solid var(--bd);background:rgba(17,12,24,.82)}
+  .tabs-in{justify-content:flex-start;gap:4px}
+  .tab{flex:0 0 auto;flex-direction:row;gap:8px;padding:12px 16px;font-size:.92rem;border-top:0;border-bottom:2px solid transparent}
+  .tab.active{border-bottom-color:var(--or)}
+  .tab-ico{font-size:1.05rem}
+  .main{padding-bottom:48px}
+}
+
+/* Cards */
+.card{background:linear-gradient(180deg,var(--s1),rgba(26,19,37,.85));border:1px solid var(--bd);border-radius:var(--r);padding:16px}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+.empty{color:var(--mu);text-align:center;padding:18px 8px;border:1px dashed var(--bd);border-radius:12px;font-weight:600}
+.notice{background:rgba(255,84,112,.1);border:1px solid rgba(255,84,112,.35);color:#ffc2cc;padding:12px 14px;border-radius:12px;font-weight:700;font-size:.9rem}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:.72rem;font-weight:900;background:var(--s3);color:var(--mu);white-space:nowrap}
+.badge.ok{background:rgba(61,220,132,.14);color:var(--gr)}
+.badge.wait{background:rgba(255,207,74,.13);color:var(--go)}
+.badge.win{background:rgba(61,220,132,.16);color:var(--gr)}
+.badge.loss{background:rgba(255,84,112,.13);color:var(--rd)}
+.badge.priv{background:rgba(155,92,255,.18);color:#c9a8ff}
+.money{color:var(--go);font-weight:800}
+
+/* Tiles */
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.tiles.t3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:820px){.tiles{grid-template-columns:repeat(2,1fr)}.tiles .tile:last-child:nth-child(odd){grid-column:span 2}.tiles.t3{grid-template-columns:repeat(3,1fr)}.tiles.t3 .tile:last-child{grid-column:auto}}
+.tile{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile b{font-size:1.45rem;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile span{font-size:.76rem;color:var(--mu);font-weight:700}
+.tile.money b{color:var(--go);font-size:1.2rem}
+
+/* Event flag */
+.flag{display:flex;align-items:center;justify-content:space-between;gap:16px;border-radius:var(--r);padding:18px;border:1px solid}
+.flag.on{background:linear-gradient(120deg,rgba(61,220,132,.13),rgba(61,220,132,.03));border-color:rgba(61,220,132,.35)}
+.flag.off{background:linear-gradient(120deg,rgba(255,84,112,.14),rgba(255,84,112,.03));border-color:rgba(255,84,112,.35)}
+.flag-main{display:flex;gap:14px;align-items:flex-start}
+.flag-dot{width:14px;height:14px;border-radius:50%;margin-top:22px;flex:none}
+.flag.on .flag-dot{background:var(--gr);animation:pulse 1.6s infinite}.flag.off .flag-dot{background:var(--rd)}
+.flag h2{margin:2px 0 4px}
+@media(max-width:620px){.flag{flex-direction:column;align-items:stretch}.flag .btn{width:100%}}
+
+/* Avatar */
+.av{--c:#6b5a85;width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:900;color:#fff;
+  background:radial-gradient(circle at 30% 25%,color-mix(in srgb,var(--c) 70%,#fff),var(--c));box-shadow:0 0 0 2px rgba(0,0,0,.25)}
+.av.lg{width:56px;height:56px;font-size:1.3rem}
+
+/* Ranking */
+.rank,.grank,.mini{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.rk{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);border:1px solid transparent;border-radius:14px}
+.rk.me{border-color:var(--or);background:rgba(255,122,26,.09)}
+.rk.top1{background:linear-gradient(90deg,rgba(255,207,74,.15),var(--s2))}
+.pos{width:30px;text-align:center;font-weight:900;color:var(--mu);flex:none;font-size:.95rem}
+.rk.top1 .pos,.rk.top2 .pos,.rk.top3 .pos{font-size:1.3rem}
+.rk-name{flex:1;min-width:0;font-weight:800;display:flex;flex-direction:column}
+.rk-name em{font-style:normal;color:var(--or2);font-size:.8rem}
+.rk-name small,.lr-main small{color:var(--mu);font-weight:600;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rk-stats{display:flex;gap:14px;align-items:center}
+.cell{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
+.cell b{font-size:1.05rem;font-weight:900}.cell small{color:var(--mu);font-size:.7rem;font-weight:700}
+.cell.m b{color:var(--go);font-size:.92rem}
+@media(max-width:480px){.rk-stats{gap:10px}.cell b{font-size:.95rem}.cell.m b{font-size:.82rem}}
+.grank li{--c:var(--pu);padding:10px 12px;background:var(--s2);border-radius:14px}
+.gr-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gr-name{flex:1}.gr-val{font-size:.86rem;color:var(--mu)}.gr-val b{color:var(--tx)}
+.bar{height:8px;background:var(--s3);border-radius:99px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c);border-radius:99px;transition:width .4s}
+.g-ico{font-size:1.2rem}
+
+/* Podium */
+.podium{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:end;gap:8px;padding-top:6px}
+.pd{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;min-width:0}
+.pd b{font-weight:900;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd small{color:var(--mu);font-weight:700}
+.pd-base{width:100%;border-radius:12px 12px 4px 4px;display:grid;place-items:center;font-size:1.6rem;margin-top:4px;
+  background:linear-gradient(180deg,var(--s3),var(--s2));border:1px solid var(--bd)}
+.pd1 .pd-base{height:92px;background:linear-gradient(180deg,rgba(255,207,74,.35),var(--s2));border-color:rgba(255,207,74,.5)}
+.pd2 .pd-base{height:66px}.pd3 .pd-base{height:48px}
+
+/* Lists */
+.list{display:flex;flex-direction:column;gap:8px}
+.list-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--s2);border:1px solid transparent;border-radius:14px;padding:10px 12px;cursor:pointer}
+.list-row:hover{border-color:var(--bd)}
+.lr-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.lr-side{display:flex;gap:12px;font-size:.86rem;color:var(--mu);align-items:center}
+.lr-side b{color:var(--tx)}
+.chev{color:var(--mu);font-size:1.4rem}
+@media(max-width:560px){.lr-side{flex-direction:column;align-items:flex-end;gap:0;font-size:.78rem}}
+.mini li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--s2);border-radius:12px;flex-wrap:wrap}
+.mini li>span:first-child{font-weight:800;display:flex;flex-direction:column;min-width:0}
+.mini li small{color:var(--mu);font-weight:600;font-size:.78rem}
+.mini-r{display:flex;flex-direction:column;align-items:flex-end;gap:0}
+.mini-r b{color:var(--gr)}
+.mini-r small.mval{color:var(--go)!important;font-weight:800!important}
+
+/* Games */
+.game-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.game-card{text-align:left;background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:border-color .15s,transform .1s}
+.game-card:hover{border-color:var(--or)}.game-card:active{transform:scale(.99)}
+.game-card h3{font-size:1.08rem}
+.meta{display:flex;gap:14px;flex-wrap:wrap;font-size:.86rem;font-weight:700;color:var(--mu)}
+.gc-foot{display:flex;gap:12px;font-size:.84rem;color:var(--mu);font-weight:700;border-top:1px solid var(--bd);padding-top:8px;flex-wrap:wrap}
+.gc-w{color:var(--gr);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.back{background:none;border:0;color:var(--or2);font-weight:900;cursor:pointer;padding:4px 0;align-self:flex-start}
+.game-head{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.game-head h2{margin:8px 0 4px}
+.step{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--or);color:#1a0c00;font-size:.8rem;font-weight:900}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--s3);border:1px solid var(--bd);border-radius:999px;padding:7px 12px;font-size:.84rem;font-weight:800;cursor:pointer}
+button.chip:hover{border-color:var(--or)}
+.chip.member{cursor:default;padding-right:6px}
+.chip .x{background:rgba(255,255,255,.08);border:0;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:.7rem;color:var(--mu)}
+.chip .x:hover{background:var(--rd);color:#fff}
+.win-chip{background:rgba(61,220,132,.1);border-color:rgba(61,220,132,.35);cursor:default}
+.win-chip b{color:var(--gr)}
+.check-groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px}
+.check-group{background:var(--s2);border-radius:14px;padding:10px}
+.cg-title{font-weight:900;font-size:.86rem;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.cg-title i{width:10px;height:10px;border-radius:50%;display:block}
+.ck{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;cursor:pointer;font-weight:700}
+.ck:hover{background:var(--s3)}
+.ck input{width:20px;height:20px;accent-color:var(--or);flex:none}
+
+.results{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.res-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:10px 12px;background:var(--s2);border:1px solid transparent;border-radius:14px;transition:border-color .15s,background .15s}
+.res-row.win{border-color:rgba(61,220,132,.45);background:rgba(61,220,132,.07)}
+.res-name{font-weight:800;display:flex;flex-direction:column;min-width:0}.res-name small{color:var(--mu);font-weight:600;font-size:.78rem}
+.res-state span{font-size:.78rem;font-weight:900;padding:3px 9px;border-radius:999px}
+.res-state .w{display:none;background:rgba(61,220,132,.16);color:var(--gr)}
+.res-state .l{background:rgba(255,84,112,.12);color:var(--rd)}
+.res-row.win .res-state .w{display:inline}.res-row.win .res-state .l{display:none}
+.res-vals{display:none;grid-column:1/-1;gap:10px;grid-template-columns:1fr 1fr}
+.res-row.win .res-vals{display:grid}
+.res-vals label{display:flex;align-items:center;gap:8px;font-size:.8rem;font-weight:800;color:var(--mu)}
+.res-vals input{min-height:38px;padding:7px 10px}
+@media(min-width:700px){.res-row{grid-template-columns:auto 1fr auto auto}.res-vals{grid-column:auto;width:260px}.res-row:not(.win) .res-vals{display:grid;visibility:hidden}}
+.switch{position:relative;width:46px;height:28px;flex:none;cursor:pointer}
+.switch input{opacity:0;position:absolute;inset:0;margin:0;cursor:pointer;z-index:1}
+.switch span{position:absolute;inset:0;background:var(--s3);border:1px solid var(--bd);border-radius:99px;transition:background .15s}
+.switch span::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--mu);transition:transform .15s,background .15s}
+.switch input:checked+span{background:rgba(61,220,132,.3);border-color:var(--gr)}
+.switch input:checked+span::after{transform:translateX(18px);background:var(--gr)}
+.switch input:disabled+span{opacity:.5}
+
+/* Groups */
+.groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.group{--c:var(--pu);border-top:4px solid var(--c)}
+.g-stats{display:flex;gap:14px;flex-wrap:wrap;font-size:.84rem;color:var(--mu);margin-bottom:12px}
+.g-stats b{color:var(--tx)}
+.add-sel{margin-top:12px}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.sw-opt{position:relative;cursor:pointer}
+.sw-opt input{position:absolute;opacity:0;inset:0}
+.sw-opt span{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:var(--s2);border:2px solid var(--bd);font-size:1.25rem}
+.sw-opt input:checked+span{border-color:var(--or);background:var(--s3)}
+.sw-opt .dot{background:transparent}.sw-opt .dot::after{content:"";width:22px;height:22px;border-radius:50%;background:inherit}
+.seg{display:inline-flex;background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:4px;align-self:flex-start}
+.seg button{background:none;border:0;padding:8px 18px;border-radius:9px;font-weight:800;color:var(--mu);cursor:pointer}
+.seg button.on{background:var(--s3);color:var(--tx)}
+
+/* Login */
+.login{padding-top:28px;padding-bottom:40px;display:flex;flex-direction:column;gap:18px}
+.hero{text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px 0 6px}
+.hero-ico{font-size:3.6rem;filter:drop-shadow(0 0 24px rgba(255,122,26,.65));animation:float 3s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-6px) rotate(-4deg)}}
+.hero h1{font-size:clamp(2rem,7vw,3.2rem);text-shadow:0 0 30px rgba(255,122,26,.35)}
+.people-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px;max-height:420px;overflow:auto}
+.pick{display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid transparent;border-radius:14px;padding:10px;cursor:pointer;text-align:left}
+.pick:hover{border-color:var(--or)}
+.pick span{display:flex;flex-direction:column;font-weight:800;min-width:0}
+.pick small{color:var(--mu);font-weight:600;font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hint{margin-top:10px;font-size:.84rem;color:var(--mu);background:var(--s2);padding:8px 10px;border-radius:10px}
+.foot{text-align:center}
+
+/* User */
+.me-hero{--c:var(--pu);display:flex;align-items:center;gap:14px;background:linear-gradient(120deg,color-mix(in srgb,var(--c) 22%,transparent),var(--s1) 70%)}
+.g-badge{display:inline-block;margin-top:6px;font-size:.82rem;font-weight:800;background:rgba(0,0,0,.25);padding:4px 10px;border-radius:99px}
+.private{background:linear-gradient(135deg,rgba(155,92,255,.16),var(--s1) 70%);border-color:rgba(155,92,255,.4)}
+.money-big{display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0;cursor:pointer;padding:0 0 8px}
+.money-big .mval{font-size:2.1rem;font-weight:900;color:var(--go);transition:filter .2s}
+.money-big small{color:var(--mu);font-weight:700;font-size:.8rem}
+.hide-money .mval{filter:blur(9px);user-select:none}
+.closed-banner{background:linear-gradient(90deg,rgba(255,122,26,.18),rgba(155,92,255,.14));border:1px solid rgba(255,122,26,.4);padding:12px 14px;border-radius:14px;font-weight:800}
+.final-hero{text-align:center;background:linear-gradient(160deg,rgba(255,122,26,.2),rgba(155,92,255,.14) 60%,var(--s1))}
+.final-hero h2{font-size:clamp(1.8rem,6vw,2.6rem);margin:6px 0}
+.games-all{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.ga{background:var(--s2);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.ga-h{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.game-li{display:flex}
+
+/* Modos de pontuação */
+.badge.podium{background:rgba(200,210,230,.14);color:#d9e0ee}
+.badge.mode{background:rgba(155,92,255,.16);color:#c9a8ff}
+.badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.opt-cards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:420px){.opt-cards{grid-template-columns:1fr}}
+.oc{position:relative;cursor:pointer}
+.oc input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.oc span{display:flex;flex-direction:column;gap:2px;height:100%;padding:10px 12px;border-radius:12px;border:2px solid var(--bd);background:var(--s2)}
+.oc b{font-weight:900;color:var(--tx)}.oc small{color:var(--mu);font-weight:600;font-size:.78rem}
+.oc input:checked+span{border-color:var(--or);background:rgba(255,122,26,.08)}
+.oc input:focus-visible+span{box-shadow:0 0 0 3px rgba(255,122,26,.3)}
+form[data-scoring="colocacao"] .only-vit,form[data-scoring="vitoria"] .only-col{display:none}
+form[data-mode="individual"] .only-grp{display:none}
+.places-grid{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center}
+.places-grid .ph{font-size:.74rem;font-weight:800;color:var(--mu)}
+.places-grid .pl{font-weight:900;white-space:nowrap}
+.res-row.col{grid-template-columns:1fr}
+.place-pick{display:flex;gap:6px;flex-wrap:wrap}
+.pp{position:relative;cursor:pointer}
+.pp input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.pp span{display:inline-flex;align-items:center;justify-content:center;min-width:58px;padding:7px 10px;border-radius:10px;border:1px solid var(--bd);background:var(--s3);font-weight:800;font-size:.86rem;white-space:nowrap}
+.pp input:checked+span{border-color:var(--mu);background:var(--s1)}
+.pp.p1 input:checked+span{background:rgba(255,207,74,.2);border-color:var(--go);color:var(--go)}
+.pp.p2 input:checked+span{background:rgba(200,210,230,.16);border-color:#c9d2e3;color:#e3e9f5}
+.pp.p3 input:checked+span{background:rgba(205,127,50,.2);border-color:#cd7f32;color:#f0b27a}
+.pp input:disabled+span{opacity:.5}
+@media(min-width:700px){.res-row.col{grid-template-columns:1fr auto auto}}
+.grp-ck{align-items:flex-start;background:var(--s2);border-left:4px solid var(--c)}
+.grp-ck span{display:flex;flex-direction:column}
+.grp-ck small{color:var(--mu);font-weight:600;font-size:.78rem}
+.res-members{color:var(--mu);font-weight:600;font-size:.78rem}
+
+.tag{display:inline-block;font-style:normal;font-size:.68rem;font-weight:900;padding:2px 7px;border-radius:99px;vertical-align:middle;white-space:nowrap}
+.tag.tie{background:rgba(255,207,74,.16);color:var(--go)}
+.tag.tb{background:rgba(155,92,255,.16);color:#c9a8ff}
+
+/* Modal & toast */
+.overlay{position:fixed;inset:0;z-index:50;background:rgba(5,3,9,.7);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;animation:fade .15s}
+.modal{background:var(--s1);border:1px solid var(--bd);width:100%;max-width:560px;max-height:90vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom));animation:up .2s ease-out}
+@media(min-width:640px){.overlay{align-items:center}.modal{border-radius:20px}}
+.modal-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.modal-h h3{font-size:1.15rem}
+@keyframes fade{from{opacity:0}}@keyframes up{from{transform:translateY(30px);opacity:0}}
+#toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);opacity:0;z-index:60;background:var(--tx);color:#1a1325;font-weight:800;padding:11px 16px;border-radius:12px;pointer-events:none;transition:all .2s;max-width:90vw;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(min-width:820px){#toast{bottom:28px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal-root"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+(function(){
+'use strict';
+const KEY='gincana-halloween-proto-v1';
+const ADMIN_PIN='1234';
+const COLORS=['#9b5cff','#ff5470','#4ac7ff','#ff7a1a','#3ddc84','#ffcf4a'];
+const ICONS=['🧙','🧛','👻','🎃','🕷️','💀','🦇','🧟'];
+const MEDALS=['🥇','🥈','🥉'];
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+const BRL=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+
+function seed(){
+  const groups=[
+    {id:'g1',name:'Bruxas',color:'#9b5cff',icon:'🧙'},
+    {id:'g2',name:'Vampiros',color:'#ff5470',icon:'🧛'},
+    {id:'g3',name:'Fantasmas',color:'#4ac7ff',icon:'👻'}];
+  const names=[['Ana','g1'],['Bruno','g1'],['Carla','g1'],['Diego','g2'],['Elisa','g2'],['Felipe','g2'],['Gabi','g3'],['Hugo','g3'],['Iara','g3']];
+  const people=names.map(([n,g],i)=>({id:'p'+(i+1),name:n,groupId:g}));
+  const all=people.map(p=>p.id);
+  const R=(pid,place,points,prize,gid)=>({pid,place,points,prize,...(gid?{gid}:{})});
+  const base={mode:'individual',scoring:'vitoria',places:defPlaces(),groups:[],groupResults:[]};
+  const games=[
+    {...base,id:'j1',name:'Corrida do Caldeirão',type:'Gincana',scoring:'colocacao',points:10,prize:20,places:[{points:10,prize:20},{points:6,prize:10},{points:3,prize:5}],desc:'Revezamento carregando o caldeirão sem derramar.',participants:all.slice(),results:[R('p1',1,10,20),R('p4',2,6,10),R('p7',3,3,5)],status:'pontuado'},
+    {...base,id:'j2',name:'Caça às Abóboras',type:'Gincana',mode:'grupo',points:15,prize:30,desc:'Os grupos procuram as abóboras escondidas pelo salão.',groups:['g1','g2','g3'],participants:all.slice(),
+      groupResults:[{gid:'g2',place:1,points:15,prize:30}],results:[R('p4',1,15,30,'g2'),R('p5',1,15,30,'g2'),R('p6',1,15,30,'g2')],status:'pontuado'},
+    {...base,id:'j3',name:'Quiz do Terror',type:'Jogo',points:5,prize:10,desc:'Perguntas sobre filmes de terror.',participants:['p1','p3','p4','p7','p8'],results:[R('p7',1,5,10)],status:'pontuado'},
+    {...base,id:'j4',name:'Morder a Maçã',type:'Jogo',points:8,prize:15,desc:'',participants:['p2','p5','p6','p9'],results:[],status:'aberto'},
+    {...base,id:'j5',name:'Concurso de Fantasia',type:'Gincana',mode:'grupo',scoring:'colocacao',points:20,prize:50,places:[{points:20,prize:50},{points:12,prize:25},{points:6,prize:10}],desc:'Melhor fantasia em grupo da noite.',groups:['g1','g2','g3'],participants:[],results:[],status:'aberto'}];
+  // horário de registro de cada resultado (usado no desempate "quem chegou primeiro")
+  const t0=Date.UTC(2026,9,31,22,0);
+  games.forEach((g,i)=>{g.results.forEach(r=>r.at=t0+i*25*60000);g.groupResults.forEach(r=>r.at=t0+i*25*60000)});
+  return {event:{name:'Gincana de Halloween',open:true,closedAt:null},groups,people,games};
+}
+function defPlaces(){return[{points:10,prize:20},{points:6,prize:10},{points:3,prize:5}]}
+function normalize(d){
+  d.games.forEach(g=>{
+    if(g.mode!=='grupo')g.mode='individual';
+    if(g.scoring!=='colocacao')g.scoring='vitoria';
+    if(!Array.isArray(g.places)||g.places.length!==3)g.places=defPlaces();
+    if(!Array.isArray(g.groups))g.groups=[];
+    if(!Array.isArray(g.groupResults))g.groupResults=[];
+    if(!Array.isArray(g.participants))g.participants=[];
+    if(!Array.isArray(g.results))g.results=[];
+    g.results.forEach(r=>{if(!r.place)r.place=1;if(!r.at)r.at=Date.UTC(2026,0,1)+d.games.indexOf(g)*60000});
+    g.groupResults.forEach(r=>{if(!r.at)r.at=Date.UTC(2026,0,1)+d.games.indexOf(g)*60000});
+  });
+  return d;
+}
+function load(){try{const r=localStorage.getItem(KEY);if(!r)return null;const d=JSON.parse(r);if(!d||!d.event||!Array.isArray(d.people)||!Array.isArray(d.games)||!Array.isArray(d.groups))return null;return normalize(d)}catch(e){return null}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function loadSess(){try{return JSON.parse(localStorage.getItem(KEY+'-sess'))||{role:null}}catch(e){return{role:null}}}
+function saveSess(){try{localStorage.setItem(KEY+'-sess',JSON.stringify(sess))}catch(e){}}
+
+let S=load()||seed();
+let sess=loadSess();
+let view={adminTab:'painel',userTab:null,gameId:null,rankMode:'pessoas',reveal:false,lastGroup:''};
+let pendingConfirm=null;
+
+/* ---------- data helpers ---------- */
+const person=id=>S.people.find(p=>p.id===id);
+const groupOf=p=>{if(typeof p==='string')p=person(p);return p&&p.groupId?S.groups.find(g=>g.id===p.groupId):null};
+const resultOf=(g,pid)=>g.status==='pontuado'?g.results.find(r=>r.pid===pid):null;
+const curGame=()=>S.games.find(g=>g.id===view.gameId);
+const membersOf=gid=>S.people.filter(p=>p.groupId===gid);
+/* Em jogos por grupo ainda não pontuados, os participantes são os membros atuais dos grupos escolhidos */
+function partsOf(g){
+  if(g.mode==='grupo'&&g.status!=='pontuado')return S.people.filter(p=>g.groups.includes(p.groupId)).map(p=>p.id);
+  return g.participants;
+}
+function statsOf(pid){
+  const s={pid,points:0,wins:0,podiums:0,prize:0,played:0,reachedAt:0};
+  for(const g of S.games){
+    if(partsOf(g).includes(pid))s.played++;
+    const r=resultOf(g,pid);
+    if(r){if(r.place===1)s.wins++;else s.podiums++;s.points+=Number(r.points)||0;s.prize+=Number(r.prize)||0;s.reachedAt=Math.max(s.reachedAt,r.at||0)}
+  }
+  return s;
+}
+const medalOf=n=>MEDALS[n-1]||'';
+function placeText(g,place){return g.scoring==='vitoria'?'Vitória':medalOf(place)+' '+place+'º lugar'}
+function ModeBadges(g){
+  return `<span class="badge mode">${g.mode==='grupo'?'👥 Por grupo':'👤 Individual'}</span><span class="badge">${g.scoring==='colocacao'?'🥇 1º/2º/3º':'🏆 Vencedor'}</span>`;
+}
+function ValuesText(g){
+  const per=g.mode==='grupo'?' por membro':'';
+  if(g.scoring==='colocacao')return `<span>⭐ ${g.places.map((p,i)=>`${i+1}º ${p.points}`).join(' · ')} pts${per}</span><span class="money">💰 ${g.places.map((p,i)=>`${i+1}º ${BRL(p.prize)}`).join(' · ')}</span>`;
+  return `<span>⭐ ${g.points} pts por vitória${per}</span><span class="money">💰 ${BRL(g.prize)}${per}</span>`;
+}
+/* Vencedores do jogo: por grupo ou por pessoa, ordenados pela colocação */
+function winnersOf(g){
+  if(g.status!=='pontuado')return[];
+  if(g.mode==='grupo')return g.groupResults.slice().sort((a,b)=>a.place-b.place).map(x=>{const gr=S.groups.find(y=>y.id===x.gid);return gr?{label:gr.icon+' '+gr.name,place:x.place,points:x.points,each:true}:null}).filter(Boolean);
+  return g.results.slice().sort((a,b)=>a.place-b.place).map(r=>{const p=person(r.pid);return p?{label:p.name,place:r.place,points:r.points}:null}).filter(Boolean);
+}
+const winIco=(g,place)=>g.scoring==='vitoria'?'🏆':medalOf(place);
+function WinnersChips(g){
+  const w=winnersOf(g);
+  if(!w.length)return '<small class="muted">Sem vencedores</small>';
+  return `<div class="chips">${w.map(x=>`<span class="chip win-chip">${winIco(g,x.place)} ${esc(x.label)} <b>+${x.points}${x.each?' cada':''}</b></span>`).join('')}</div>`;
+}
+const WinnersText=g=>winnersOf(g).map(x=>winIco(g,x.place)+' '+esc(x.label)).join(', ');
+/* Regra do ranking: com o evento aberto vale vitórias; encerrado vale pontos */
+const rule=()=>S.event.open?'wins':'points';
+/* Critérios, em ordem:
+   aberto    → 1) vitórias  2) pontos   3) quem chegou primeiro à pontuação atual
+   encerrado → 1) pontos    2) vitórias 3) quem chegou primeiro à pontuação atual
+   Só divide a posição (empate) quando os três critérios são iguais. */
+function ranking(by){
+  const rows=S.people.map(p=>({...statsOf(p.id),person:p}));
+  const first=by==='wins'?r=>r.wins:r=>r.points,second=by==='wins'?r=>r.points:r=>r.wins;
+  const cmp=(a,b)=>first(b)-first(a)||second(b)-second(a)||(a.reachedAt||Infinity)-(b.reachedAt||Infinity);
+  rows.sort((a,b)=>cmp(a,b)||a.person.name.localeCompare(b.person.name,'pt-BR'));
+  let pos=0;
+  const out=rows.map((r,i)=>{if(i===0||cmp(rows[i-1],r)!==0)pos=i+1;return{...r,pos,scored:r.points>0||r.wins>0}});
+  out.forEach(r=>{
+    r.tied=r.scored&&out.filter(x=>x.pos===r.pos).length>1;
+    r.tiebreak=r.scored&&!r.tied&&out.some(x=>x!==r&&first(x)===first(r));
+  });
+  return out;
+}
+const TIE_TEXT={wins:'Desempate: quem tem mais vitórias fica na frente; empatou nas vitórias, vale quem tem mais pontos; empatou também nos pontos, fica na frente quem chegou primeiro a essa pontuação. Se tudo for igual, a posição é dividida.',
+  points:'Desempate: quem tem mais pontos fica na frente; empatou nos pontos, vale quem tem mais vitórias; empatou também nas vitórias, fica na frente quem chegou primeiro a essa pontuação. Se tudo for igual, a posição é dividida.'};
+/* Placar do grupo: gincanas por grupo contam uma vez para o grupo; jogos individuais somam o resultado dos membros */
+function groupTotals(gid){
+  let points=0,wins=0,prize=0;
+  for(const g of S.games){
+    if(g.status!=='pontuado')continue;
+    if(g.mode==='grupo'){
+      const gr=g.groupResults.find(x=>x.gid===gid);
+      if(gr){points+=Number(gr.points)||0;if(gr.place===1)wins++}
+      g.results.filter(r=>r.gid===gid).forEach(r=>prize+=Number(r.prize)||0);
+    }else{
+      g.results.forEach(r=>{const p=person(r.pid);if(p&&p.groupId===gid){points+=Number(r.points)||0;if(r.place===1)wins++;prize+=Number(r.prize)||0}});
+    }
+  }
+  return{points,wins,prize};
+}
+function groupRanking(){
+  const rows=S.groups.map(g=>({g,members:S.people.filter(p=>p.groupId===g.id).length,...groupTotals(g.id)})).sort((a,b)=>b.points-a.points||b.wins-a.wins||a.g.name.localeCompare(b.g.name,'pt-BR'));
+  let pos=0;return rows.map((r,i)=>{if(i===0||rows[i-1].points!==r.points||rows[i-1].wins!==r.wins)pos=i+1;return{...r,pos}});
+}
+
+/* ---------- UI pieces ---------- */
+const Avatar=(p,cls='')=>{const g=groupOf(p);return `<span class="av ${cls}" style="--c:${g?g.color:'#6b5a85'}" aria-hidden="true">${esc((p.name||'?').trim().charAt(0).toUpperCase())}</span>`};
+const Tile=(v,l,cls='')=>`<div class="tile ${cls}"><b>${v}</b><span>${l}</span></div>`;
+const Empty=m=>`<p class="empty">${m}</p>`;
+const GroupLabel=p=>{const g=groupOf(p);return g?esc(g.icon+' '+g.name):'Sem grupo'};
+const StatusBadge=g=>g.status==='pontuado'?'<span class="badge ok">Pontuado</span>':'<span class="badge wait">Aguardando resultado</span>';
+function ResultBadge(g,pid){
+  if(g.status!=='pontuado')return '<span class="badge wait">Aguardando</span>';
+  const r=resultOf(g,pid);
+  if(!r)return `<span class="badge loss">${g.scoring==='colocacao'?'Sem colocação':'Derrota'}</span>`;
+  return `<span class="badge ${r.place===1?'win':'podium'}">${placeText(g,r.place)}</span>`;
+}
+const GroupSelect=(name,val)=>`<select name="${name}" aria-label="Grupo"><option value="">Sem grupo</option>${S.groups.map(g=>`<option value="${g.id}" ${g.id===val?'selected':''}>${esc(g.icon+' '+g.name)}</option>`).join('')}</select>`;
+const Locked=()=>`<div class="notice">🔒 O evento está encerrado. Reabra o evento no Painel para cadastrar ou pontuar jogos.</div>`;
+
+function Header(sub){
+  const o=S.event.open;
+  return `<header class="top"><div class="wrap top-in">
+    <div class="brand"><span class="brand-ico">🎃</span><div style="min-width:0"><div class="brand-name">${esc(S.event.name)}</div><div class="brand-sub">${sub}</div></div></div>
+    <div class="top-right"><span class="pill ${o?'pill-on':'pill-off'}" title="${o?'Jogos abertos e ativos':'Evento encerrado'}"><i></i><span class="txt">${o?'Jogos abertos':'Encerrado'}</span></span>
+    <button type="button" class="btn ghost sm" data-action="logout">Sair</button></div>
+  </div></header>`;
+}
+function Nav(tabs,cur,act){
+  return `<nav class="tabs" aria-label="Navegação"><div class="wrap tabs-in">${tabs.map(t=>`<button type="button" class="tab ${t.id===cur?'active':''}" ${t.id===cur?'aria-current="page"':''} data-action="${act}" data-tab="${t.id}"><span class="tab-ico">${t.ico}</span><span>${t.label}</span></button>`).join('')}</div></nav>`;
+}
+function RankList(rows,o={}){
+  if(!rows.length)return Empty('Nenhum participante ainda.');
+  return `<ol class="rank">${rows.map(r=>{
+    const top=r.scored&&r.pos<=3?'top'+r.pos:'';
+    const tag=r.tied?'<span class="tag tie">🤝 empate</span>':(r.tiebreak?'<span class="tag tb">⚖️ no desempate</span>':'');
+    return `<li class="rk ${o.me===r.pid?'me':''} ${top}">
+      <span class="pos">${!r.scored?'–':top?MEDALS[r.pos-1]:r.pos+'º'}</span>${Avatar(r.person)}
+      <span class="rk-name"><span>${esc(r.person.name)}${o.me===r.pid?' <em>você</em>':''} ${tag}</span><small>${GroupLabel(r.person)}</small></span>
+      <span class="rk-stats">
+        ${o.by==='wins'?'':`<span class="cell"><b>${r.points}</b><small>pts</small></span>`}
+        <span class="cell"><b>${r.wins}</b><small>${r.wins===1?'vitória':'vitórias'}</small></span>
+        ${o.money?`<span class="cell m"><b>${BRL(r.prize)}</b><small>prêmio</small></span>`:''}
+      </span></li>`}).join('')}</ol>`;
+}
+function GroupRank(o={}){
+  const gr=groupRanking();if(!gr.length)return Empty('Nenhum grupo criado.');
+  const max=Math.max(1,...gr.map(x=>x.points));
+  return `<ol class="grank">${gr.map((x,i)=>`<li style="--c:${x.g.color}"><div class="gr-top"><span class="pos">${x.points<=0?'–':x.pos<=3?MEDALS[x.pos-1]:x.pos+'º'}</span><span class="g-ico">${x.g.icon}</span><b class="gr-name">${esc(x.g.name)}</b>
+    <span class="gr-val"><b>${x.points}</b> pts · ${x.wins} vit.${o.money?` · <span class="money">${BRL(x.prize)}</span>`:''}</span></div>
+    <div class="bar"><i style="width:${x.points/max*100}%"></i></div></li>`).join('')}</ol>`;
+}
+function Podium(rk,by){
+  const t=rk.filter(r=>r.scored).slice(0,3);
+  if(!t.length)return Empty('Ninguém pontuou ainda.');
+  const order=[[t[1],2],[t[0],1],[t[2],3]];
+  return `<div class="podium">${order.map(([r,n])=>r?`<div class="pd pd${n}">${Avatar(r.person,'lg')}<b>${esc(r.person.name)}</b><small>${by==='wins'?`${r.wins} vit. · ${r.points} pts`:r.points+' pts'}${r.tied?' · empate':''}</small><div class="pd-base">${MEDALS[r.pos-1]||r.pos+'º'}</div></div>`:'<div></div>').join('')}</div>`;
+}
+
+/* ---------- Login ---------- */
+function Login(){
+  const o=S.event.open;
+  const ppl=S.people.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  return `<div class="login wrap">
+    <div class="hero"><div class="hero-ico">🎃</div><h1 class="spooky">${esc(S.event.name)}</h1>
+      <span class="pill ${o?'pill-on':'pill-off'}"><i></i>${o?'Jogos abertos e ativos':'Evento encerrado'}</span></div>
+    <div class="grid2">
+      <section class="card"><h3>👤 Sou participante</h3><p class="muted small" style="margin-top:4px">Escolha seu nome para ver seus jogos, vitórias e o ranking.</p>
+        ${ppl.length?`<div class="people-pick">${ppl.map(p=>`<button type="button" class="pick" data-action="login-person" data-id="${p.id}">${Avatar(p)}<span>${esc(p.name)}<small>${GroupLabel(p)}</small></span></button>`).join('')}</div>`:`<div style="margin-top:12px">${Empty('Nenhum participante cadastrado ainda.')}</div>`}
+      </section>
+      <section class="card"><h3>🧙 Sou o administrador</h3><p class="muted small" style="margin-top:4px">Acesso exclusivo de quem organiza a gincana.</p>
+        <form data-form="admin-login" class="stack" style="margin-top:12px">
+          <label class="fld">PIN de acesso<input name="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••" required></label>
+          <button class="btn primary" type="submit">Entrar como administrador</button></form>
+        <p class="hint">Protótipo: o PIN é <b>1234</b>.</p>
+      </section>
+    </div>
+    <p class="foot muted small">Protótipo navegável · os dados ficam salvos apenas neste navegador.</p>
+  </div>`;
+}
+
+/* ---------- Admin ---------- */
+function Admin(){
+  const tabs=[{id:'painel',ico:'🏠',label:'Painel'},{id:'jogos',ico:'🎲',label:'Jogos'},{id:'pessoas',ico:'👥',label:'Pessoas'},{id:'grupos',ico:'🏴',label:'Grupos'},{id:'ranking',ico:'🏆',label:'Ranking'}];
+  const map={painel:AdminPainel,jogos:AdminJogos,pessoas:AdminPessoas,grupos:AdminGrupos,ranking:AdminRanking};
+  return Header('Administrador')+Nav(tabs,view.adminTab,'admin-tab')+`<main class="wrap main">${(map[view.adminTab]||AdminPainel)()}</main>`;
+}
+function AdminPainel(){
+  const o=S.event.open,rk=ranking(rule());
+  const scored=S.games.filter(g=>g.status==='pontuado').length;
+  const pending=S.games.filter(g=>g.status!=='pontuado');
+  const totalPrize=rk.reduce((a,r)=>a+r.prize,0),totalWins=rk.reduce((a,r)=>a+r.wins,0);
+  return `
+  <section class="flag ${o?'on':'off'}">
+    <div class="flag-main"><div class="flag-dot"></div><div>
+      <div class="eyebrow">Status do evento</div><h2>${o?'Jogos abertos e ativos':'Evento encerrado'}</h2>
+      <p class="muted small">${o?'Participantes veem os próprios jogos, vitórias, pontuação, prêmio e o ranking por vitórias.':'Todos veem o ranking geral, os jogos jogados e os vencedores com pontuação — sem valores em dinheiro.'}</p></div></div>
+    ${o?'<button type="button" class="btn danger" data-action="ask-close-event">Encerrar evento</button>':'<button type="button" class="btn" data-action="ask-reopen-event">Reabrir evento</button>'}
+  </section>
+  <div class="tiles">${Tile(S.people.length,'Participantes')}${Tile(S.groups.length,'Grupos')}${Tile(scored+'/'+S.games.length,'Jogos pontuados')}${Tile(totalWins,'Vitórias registradas')}${Tile(BRL(totalPrize),'Prêmios (fictício)','money')}</div>
+  <div class="grid2">
+    <section class="card"><div class="card-h"><h3>🏆 Pódio atual <span class="muted small">(${o?'por vitórias':'por pontos'})</span></h3><button type="button" class="link" data-action="admin-tab" data-tab="ranking">Ranking completo ›</button></div>${Podium(rk,rule())}</section>
+    <section class="card"><div class="card-h"><h3>🏴 Grupos</h3><button type="button" class="link" data-action="admin-tab" data-tab="grupos">Gerenciar ›</button></div>${GroupRank({money:true})}</section>
+  </div>
+  <section class="card"><div class="card-h"><h3>⏳ Aguardando resultado</h3><button type="button" class="link" data-action="admin-tab" data-tab="jogos">Todos os jogos ›</button></div>
+    ${pending.length?`<div class="list">${pending.map(g=>`<button type="button" class="list-row" data-action="open-game" data-id="${g.id}"><span class="lr-main"><b>${esc(g.name)}</b><small>${g.type} · ${g.mode==='grupo'?'por grupo · ':''}${partsOf(g).length} participantes</small></span>${partsOf(g).length?'<span class="badge wait">Pontuar</span>':'<span class="badge">Sem participantes</span>'}<span class="chev">›</span></button>`).join('')}</div>`:Empty('Todos os jogos já foram pontuados. 🎉')}
+  </section>
+  <section class="card"><h3>⚙️ Informações gerais</h3>
+    <form data-form="event-info" class="inline-form" style="grid-template-columns:1fr auto"><input name="name" required maxlength="50" value="${esc(S.event.name)}" aria-label="Nome do evento"><button class="btn" type="submit">Salvar nome</button></form>
+    <div class="row gap" style="margin-top:12px;flex-wrap:wrap"><button type="button" class="btn ghost sm" data-action="ask-reset">Restaurar dados de exemplo</button><button type="button" class="btn ghost sm danger-tx" data-action="ask-clear">Começar do zero</button></div>
+  </section>`;
+}
+function AdminJogos(){
+  if(view.gameId){const g=curGame();if(g)return GameDetail(g);view.gameId=null}
+  const o=S.event.open;
+  const list=S.games.slice().sort((a,b)=>(a.status==='pontuado')-(b.status==='pontuado'));
+  return `<div class="row between wrap-row"><h2>Jogos e gincanas</h2><button type="button" class="btn primary" data-action="new-game" ${o?'':'disabled'}>+ Novo jogo ou gincana</button></div>
+  ${o?'':Locked()}
+  ${list.length?`<div class="game-grid">${list.map(g=>{const wt=WinnersText(g);return `<button type="button" class="game-card" data-action="open-game" data-id="${g.id}">
+    <div class="row between gap"><span class="badge">${g.type}</span>${StatusBadge(g)}</div><h3>${esc(g.name)}</h3>
+    <div class="badges">${ModeBadges(g)}</div>
+    <div class="gc-foot"><span>${g.mode==='grupo'?`🏴 ${g.groups.filter(id=>S.groups.some(x=>x.id===id)).length} grupos`:`👥 ${partsOf(g).length}`}</span>${wt?`<span class="gc-w">${wt}</span>`:(g.status==='pontuado'?'<span>Sem vencedores</span>':'')}</div>
+  </button>`}).join('')}</div>`:Empty('Nenhum jogo cadastrado. Crie o primeiro!')}`;
+}
+/* Linha de resultado: para pessoa (individual) ou grupo (por grupo); vencedor (switch) ou colocação (1º/2º/3º) */
+function ResultRow(g,key,title,sub,saved,dis){
+  const scored=g.status==='pontuado';
+  const place=scored&&saved?saved.place:0;
+  const def=g.scoring==='colocacao'?g.places[(place||1)-1]:{points:g.points,prize:g.prize};
+  const pts=saved?saved.points:def.points,prz=saved?saved.prize:def.prize;
+  const per=g.mode==='grupo'?'/membro':'';
+  const vals=`<div class="res-vals"><label>Pts${per}<input type="number" class="res-pts" min="0" step="1" value="${pts}" ${dis}></label><label>R$${per}<input type="number" class="res-prize" min="0" step="0.01" value="${prz}" ${dis}></label></div>`;
+  const name=`<div class="res-name">${title}<small>${sub}</small></div>`;
+  if(g.scoring==='vitoria'){
+    return `<div class="res-row ${place?'win':''}" data-key="${key}">
+      <label class="switch" title="Venceu?"><input type="checkbox" class="res-win" aria-label="Vitória de ${title}" ${place?'checked':''} ${dis}><span></span></label>
+      ${name}<div class="res-state"><span class="w">Vitória</span><span class="l">${scored?'Derrota':'—'}</span></div>${vals}</div>`;
+  }
+  return `<div class="res-row col ${place?'win':''}" data-key="${key}">${name}
+    <div class="place-pick" role="radiogroup" aria-label="Colocação de ${title}">${[0,1,2,3].map(n=>`<label class="pp p${n}"><input type="radio" class="res-place" name="pl-${key}" value="${n}" ${place===n?'checked':''} ${dis}><span>${n?medalOf(n)+' '+n+'º':'—'}</span></label>`).join('')}</div>${vals}</div>`;
+}
+function GameDetail(g){
+  const o=S.event.open,dis=o?'':'disabled',grp=g.mode==='grupo';
+  const help=g.scoring==='colocacao'
+    ?`Escolha o <b>1º, 2º ou 3º lugar</b>${grp?' de cada grupo':''} — quem ficar sem colocação não pontua. Empates são permitidos.`
+    :`Ative ${grp?'o grupo vencedor':'quem <b>venceu</b>'} — ${grp?'os demais grupos':'os demais'} ficam com derrota.`;
+  let step1,rows,count;
+  if(grp){
+    const sel=S.groups.filter(gr=>g.groups.includes(gr.id));count=sel.length;
+    step1=S.groups.length?`<p class="muted small">Escolha os grupos que vão disputar. <b>Todos os membros</b> do grupo recebem a mesma pontuação.</p>
+      <div class="check-groups">${S.groups.map(gr=>{const mem=membersOf(gr.id);return `<label class="ck grp-ck" style="--c:${gr.color}"><input type="checkbox" data-change="toggle-game-group" value="${gr.id}" ${g.groups.includes(gr.id)?'checked':''} ${dis}><span><b>${esc(gr.icon+' '+gr.name)}</b><small>${mem.length?esc(mem.map(p=>p.name).join(', ')):'Sem membros'}</small></span></label>`}).join('')}</div>`
+      :Empty('Crie grupos na aba Grupos.');
+    rows=sel.map(gr=>{const mem=membersOf(gr.id);return ResultRow(g,gr.id,esc(gr.icon+' '+gr.name),`${mem.length} ${mem.length===1?'membro':'membros'}: ${esc(mem.map(p=>p.name).join(', ')||'—')}`,g.groupResults.find(x=>x.gid===gr.id),dis)}).join('');
+  }else{
+    const byGroup=[...S.groups.map(gr=>({gr,ppl:membersOf(gr.id)})),{gr:null,ppl:S.people.filter(p=>!p.groupId||!S.groups.some(x=>x.id===p.groupId))}].filter(x=>x.ppl.length);
+    const parts=g.participants.map(person).filter(Boolean);count=parts.length;
+    step1=S.people.length?`<div class="chips">${S.groups.map(gr=>`<button type="button" class="chip" data-action="add-group-to-game" data-id="${gr.id}" ${dis}>+ ${esc(gr.icon+' '+gr.name)}</button>`).join('')}
+      <button type="button" class="chip" data-action="add-all-to-game" ${dis}>+ Todos</button><button type="button" class="chip" data-action="clear-game" ${dis}>Limpar</button></div>
+      <div class="check-groups">${byGroup.map(x=>`<div class="check-group"><div class="cg-title"><i style="background:${x.gr?x.gr.color:'#6b5a85'}"></i>${x.gr?esc(x.gr.icon+' '+x.gr.name):'Sem grupo'}</div>
+        ${x.ppl.map(p=>`<label class="ck"><input type="checkbox" data-change="toggle-part" value="${p.id}" ${g.participants.includes(p.id)?'checked':''} ${dis}>${esc(p.name)}</label>`).join('')}</div>`).join('')}</div>`
+      :Empty('Cadastre participantes na aba Pessoas.');
+    rows=parts.map(p=>ResultRow(g,p.id,esc(p.name),GroupLabel(p),g.results.find(x=>x.pid===p.id),dis)).join('');
+  }
+  return `<button type="button" class="back" data-action="close-game">← Voltar para jogos</button>
+  <section class="card game-head"><div style="min-width:0;flex:1">
+      <div class="badges"><span class="badge">${g.type}</span>${StatusBadge(g)}${ModeBadges(g)}</div>
+      <h2>${esc(g.name)}</h2>${g.desc?`<p class="muted small">${esc(g.desc)}</p>`:''}
+      <div class="meta" style="margin-top:8px">${ValuesText(g)}</div></div>
+    <div class="row gap" style="align-self:flex-start"><button type="button" class="btn sm" data-action="edit-game" ${dis}>Editar</button><button type="button" class="btn ghost sm danger-tx" data-action="ask-delete-game">Excluir</button></div>
+  </section>
+  ${o?'':Locked()}
+  <section class="card"><div class="card-h"><h3><span class="step">1</span>${grp?'Grupos participantes':'Participantes'} <span class="muted small">(${count})</span></h3></div>${step1}</section>
+  <section class="card"><div class="card-h"><h3><span class="step">2</span>Resultado e pontuação</h3></div>
+    ${count?`<p class="muted small">${help} Pontos e prêmio vêm do jogo, mas podem ser ajustados${grp?' (valores por membro)':' por pessoa'}.</p>
+    <div class="results">${rows}</div>
+    <div class="row end"><button type="button" class="btn primary" data-action="save-results" ${dis}>${g.status==='pontuado'?'Atualizar pontuação':'Salvar pontuação'}</button></div>`
+    :Empty(grp?'Selecione os grupos no passo 1 para registrar o resultado.':'Adicione participantes no passo 1 para registrar o resultado.')}
+  </section>`;
+}
+function AdminPessoas(){
+  const rows=S.people.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  return `<section class="card"><h3>➕ Adicionar participante</h3>
+    <form data-form="add-person" class="inline-form"><input name="name" required maxlength="40" placeholder="Nome do participante" aria-label="Nome">${GroupSelect('groupId',view.lastGroup)}<button class="btn primary" type="submit">Adicionar</button></form></section>
+  <section class="card"><div class="card-h"><h3>👥 Participantes <span class="muted small">(${rows.length})</span></h3><span class="muted small">Toque para ver tudo e editar</span></div>
+    ${rows.length?`<div class="list">${rows.map(p=>{const s=statsOf(p.id);return `<button type="button" class="list-row" data-action="person-detail" data-id="${p.id}">${Avatar(p)}
+      <span class="lr-main"><b>${esc(p.name)}</b><small>${GroupLabel(p)} · ${s.played} ${s.played===1?'jogo':'jogos'}</small></span>
+      <span class="lr-side"><span><b>${s.wins}</b> vit.</span><span><b>${s.points}</b> pts</span><span class="money">${BRL(s.prize)}</span></span><span class="chev">›</span></button>`}).join('')}</div>`:Empty('Nenhum participante. Adicione acima.')}
+  </section>`;
+}
+function PersonDetail(p){
+  const s=statsOf(p.id),games=S.games.filter(g=>partsOf(g).includes(p.id));
+  return `<div class="tiles t3">${Tile(s.points,'Pontos')}${Tile(s.wins,'Vitórias')}${Tile(BRL(s.prize),'Prêmio','money')}</div>
+  <h4>Jogos (${games.length})</h4>
+  ${games.length?`<ul class="mini">${games.map(g=>{const r=resultOf(g,p.id);return `<li><span>${esc(g.name)}<small>${g.type} · ${g.mode==='grupo'?'por grupo':'individual'}</small></span><span class="row gap">${r?`<small>+${r.points} pts · <span class="money">${BRL(r.prize)}</span></small>`:''}${ResultBadge(g,p.id)}</span></li>`}).join('')}</ul>`:Empty('Ainda não participou de nenhum jogo.')}
+  <h4>Dados</h4>
+  <form data-form="edit-person" class="stack"><input type="hidden" name="id" value="${p.id}">
+    <div class="two"><label class="fld">Nome<input name="name" required maxlength="40" value="${esc(p.name)}"></label><label class="fld">Grupo${GroupSelect('groupId',p.groupId)}</label></div>
+    <div class="row between gap"><button type="button" class="btn ghost danger-tx" data-action="ask-delete-person" data-id="${p.id}">Excluir</button><button class="btn primary" type="submit">Salvar</button></div>
+  </form>`;
+}
+function GroupForm(g){
+  g=g||{};const ic=g.icon||ICONS[S.groups.length%ICONS.length],co=g.color||COLORS[S.groups.length%COLORS.length];
+  return `<form data-form="group" class="stack" ${g.id?'':'style="margin-top:12px"'}>${g.id?`<input type="hidden" name="id" value="${g.id}">`:''}
+    <label class="fld">Nome do grupo<input name="name" required maxlength="30" value="${esc(g.name||'')}" placeholder="Ex.: Lobisomens"></label>
+    <div><div class="lbl">Ícone</div><div class="swatches">${ICONS.map(i=>`<label class="sw-opt"><input type="radio" name="icon" value="${i}" ${i===ic?'checked':''}><span>${i}</span></label>`).join('')}</div></div>
+    <div><div class="lbl">Cor</div><div class="swatches">${COLORS.map(c=>`<label class="sw-opt"><input type="radio" name="color" value="${c}" ${c===co?'checked':''}><span class="dot" style="background:${c}"></span></label>`).join('')}</div></div>
+    <div class="row end gap">${g.id?'<button type="button" class="btn ghost" data-action="close-modal">Cancelar</button>':''}<button class="btn primary" type="submit">${g.id?'Salvar':'Criar grupo'}</button></div>
+  </form>`;
+}
+function AdminGrupos(){
+  return `<section class="card"><h3>➕ Criar grupo</h3>${GroupForm()}</section>
+  ${S.groups.length?`<div class="groups">${S.groups.map(g=>{const mem=S.people.filter(p=>p.groupId===g.id),t=groupTotals(g.id),others=S.people.filter(p=>p.groupId!==g.id);
+    return `<section class="card group" style="--c:${g.color}">
+      <div class="card-h"><h3><span class="g-ico">${g.icon}</span>${esc(g.name)}</h3><div class="row gap"><button type="button" class="btn ghost sm" data-action="edit-group" data-id="${g.id}">Editar</button><button type="button" class="btn ghost sm danger-tx" data-action="ask-delete-group" data-id="${g.id}">Excluir</button></div></div>
+      <div class="g-stats"><span><b>${mem.length}</b> membros</span><span><b>${t.points}</b> pts</span><span><b>${t.wins}</b> vitórias</span><span class="money">${BRL(t.prize)}</span></div>
+      <div class="chips">${mem.map(p=>`<span class="chip member">${esc(p.name)}<button type="button" class="x" data-action="remove-from-group" data-id="${p.id}" aria-label="Remover ${esc(p.name)} do grupo">✕</button></span>`).join('')||'<span class="muted small">Sem membros ainda.</span>'}</div>
+      ${others.length?`<select class="add-sel" data-change="add-to-group" data-id="${g.id}" aria-label="Adicionar participante ao grupo"><option value="">+ Adicionar participante…</option>${others.map(p=>{const og=groupOf(p);return `<option value="${p.id}">${esc(p.name)}${og?` (sai de ${esc(og.name)})`:''}</option>`}).join('')}</select>`:''}
+    </section>`}).join('')}</div>`:Empty('Nenhum grupo criado ainda.')}`;
+}
+function AdminRanking(){
+  const m=view.rankMode;
+  return `<div class="seg" role="tablist">${[['pessoas','Pessoas'],['grupos','Grupos']].map(([k,l])=>`<button type="button" class="${m===k?'on':''}" data-action="rank-mode" data-mode="${k}">${l}</button>`).join('')}</div>
+  <section class="card"><p class="muted small" style="margin-bottom:12px">${m==='pessoas'?`Mesma ordem que os participantes veem (${S.event.open?'evento aberto: por vitórias':'evento encerrado: por pontos'}), com pontos e prêmio de todos. ${TIE_TEXT[rule()]}`:'Gincanas por grupo contam uma vez para o grupo; jogos individuais somam os resultados dos membros. Desempate: mais vitórias.'}</p>
+  ${m==='pessoas'?RankList(ranking(rule()),{money:true}):GroupRank({money:true})}</section>`;
+}
+
+/* ---------- Participante ---------- */
+function User(){
+  const p=person(sess.pid);
+  if(!p){sess={role:null};saveSess();return Login()}
+  const o=S.event.open;
+  const tabs=o?[{id:'eu',ico:'🎃',label:'Meu painel'},{id:'jogos',ico:'🎲',label:'Meus jogos'},{id:'ranking',ico:'🏆',label:'Ranking'}]
+              :[{id:'final',ico:'🏁',label:'Resultado'},{id:'todos',ico:'🎲',label:'Jogos'},{id:'eu',ico:'🎃',label:'Meu painel'}];
+  if(!tabs.some(t=>t.id===view.userTab))view.userTab=tabs[0].id;
+  const map={eu:UserEu,jogos:UserJogos,ranking:UserRanking,final:UserFinal,todos:UserTodos};
+  const banner=!o&&view.userTab!=='final'?'<div class="closed-banner">🏁 Evento encerrado — veja o resultado final na aba Resultado.</div>':'';
+  return Header('Participante · '+esc(p.name))+Nav(tabs,view.userTab,'user-tab')+`<main class="wrap main ${view.reveal?'':'hide-money'}">${banner}${map[view.userTab](p)}</main>`;
+}
+function UserEu(p){
+  const s=statsOf(p.id),g=groupOf(p),o=S.event.open;
+  const me=ranking(o?'wins':'points').find(r=>r.pid===p.id);
+  const wins=S.games.filter(x=>resultOf(x,p.id)).sort((a,b)=>resultOf(a,p.id).place-resultOf(b,p.id).place);
+  return `<section class="card me-hero" style="--c:${g?g.color:'#6b5a85'}">${Avatar(p,'lg')}<div><div class="eyebrow">Olá,</div><h2>${esc(p.name)}</h2><span class="g-badge">${g?esc(g.icon+' Grupo '+g.name):'Sem grupo'}</span></div></section>
+  <div class="tiles t3">${Tile(s.points,'Pontuação')}${Tile(s.wins,s.wins===1?'Vitória':'Vitórias')}${Tile(me.scored?me.pos+'º'+(me.tied?' 🤝':''):'—',o?(me.tied?'No ranking (empate)':'No ranking'):(me.tied?'Posição final (empate)':'Posição final'))}</div>
+  <section class="card private"><div class="card-h"><h3>🔒 Meu prêmio</h3><span class="badge priv">Só você vê</span></div>
+    <button type="button" class="money-big" data-action="reveal-money" aria-label="${view.reveal?'Ocultar':'Revelar'} prêmio"><span class="mval">${BRL(s.prize)}</span><small>${view.reveal?'Toque para ocultar':'Toque para revelar'}</small></button>
+    <p class="muted small">Valor fictício acumulado pelas suas vitórias. É individual: os outros participantes não veem.</p></section>
+  <section class="card"><div class="card-h"><h3>🏆 Minhas vitórias e colocações</h3></div>
+    ${wins.length?`<ul class="mini">${wins.map(x=>{const r=resultOf(x,p.id);return `<li><span>${winIco(x,r.place)} ${esc(x.name)}<small>${placeText(x,r.place)}${x.mode==='grupo'?' · com o grupo':''}</small></span><span class="mini-r"><b>+${r.points} pts</b><small class="mval">${BRL(r.prize)}</small></span></li>`}).join('')}</ul>`:Empty('Nenhuma vitória ainda. Bora assombrar! 👻')}
+  </section>`;
+}
+function UserJogos(p){
+  const games=S.games.filter(g=>partsOf(g).includes(p.id));
+  return `<section class="card"><div class="card-h"><h3>🎲 Jogos que participei <span class="muted small">(${games.length})</span></h3></div>
+    ${games.length?`<ul class="mini">${games.map(g=>{const r=resultOf(g,p.id);return `<li><span>${esc(g.name)}<small>${g.type} · ${g.mode==='grupo'?'por grupo':partsOf(g).length+' participantes'}</small></span><span class="row gap">${r?`<b style="color:var(--gr)">+${r.points} pts</b>`:''}${ResultBadge(g,p.id)}</span></li>`}).join('')}</ul>`:Empty('Você ainda não foi incluído em nenhum jogo.')}
+  </section>`;
+}
+function UserRanking(p){
+  return `<section class="card"><div class="card-h"><h3>🏆 Ranking de vitórias</h3></div>
+    <p class="muted small" style="margin-bottom:12px">Enquanto os jogos estão abertos, o ranking mostra apenas as vitórias de cada pessoa.<br>${TIE_TEXT.wins}</p>
+    ${RankList(ranking('wins'),{by:'wins',me:p.id})}</section>`;
+}
+function UserFinal(p){
+  const rk=ranking('points'),me=rk.find(r=>r.pid===p.id);
+  return `<section class="card final-hero"><div class="eyebrow">Resultado final</div><h2 class="spooky">O evento terminou!</h2>
+    <p>Você ficou em <b>${me.pos}º lugar${me.tied?' (empatado)':''}</b> com <b>${me.points} pts</b> e ${me.wins} ${me.wins===1?'vitória':'vitórias'}.</p></section>
+  <section class="card"><div class="card-h"><h3>🏆 Pódio</h3></div>${Podium(rk,'points')}</section>
+  <section class="card"><div class="card-h"><h3>📋 Ranking geral</h3></div><p class="muted small" style="margin-bottom:12px">${TIE_TEXT.points}</p>${RankList(rk,{me:p.id})}</section>
+  <section class="card"><div class="card-h"><h3>🏴 Grupos</h3></div>${GroupRank()}</section>`;
+}
+function UserTodos(){
+  const list=S.games.slice().sort((a,b)=>(b.status==='pontuado')-(a.status==='pontuado'));
+  return `<section class="card"><div class="card-h"><h3>🎲 Jogos e gincanas jogados</h3></div>
+    ${list.length?`<div class="games-all">${list.map(g=>`<div class="ga"><div class="ga-h"><b>${esc(g.name)}</b><span class="badge">${g.type}</span></div>
+      <div class="badges">${ModeBadges(g)}</div>
+      ${g.status==='pontuado'?WinnersChips(g):'<small class="muted">Não foi pontuado</small>'}
+      <small class="muted">${partsOf(g).length} participantes</small></div>`).join('')}</div>`:Empty('Nenhum jogo cadastrado.')}
+  </section>`;
+}
+
+/* ---------- render / modal / toast ---------- */
+function render(){
+  const a=$('#app');
+  if(sess.role==='admin')a.innerHTML=Admin();
+  else if(sess.role==='user')a.innerHTML=User();
+  else a.innerHTML=Login();
+}
+function commit(msg){save();render();if(msg)toast(msg)}
+function top(){window.scrollTo({top:0})}
+function openModal(title,body){
+  $('#modal-root').innerHTML=`<div class="overlay" data-action="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-h"><h3>${title}</h3><button type="button" class="icon-btn" data-action="close-modal" aria-label="Fechar">✕</button></div><div class="modal-b">${body}</div></div></div>`;
+  document.body.classList.add('noscroll');
+}
+function closeModal(){$('#modal-root').innerHTML='';document.body.classList.remove('noscroll');pendingConfirm=null}
+function confirmBox(title,msg,label,fn,danger=true){
+  openModal(title,`<p class="muted">${msg}</p><div class="row end gap" style="margin-top:18px"><button type="button" class="btn ghost" data-action="close-modal">Cancelar</button><button type="button" class="btn ${danger?'danger':'primary'}" data-action="confirm-yes">${label}</button></div>`);
+  pendingConfirm=fn;
+}
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2400)}
+
+/* ---------- actions ---------- */
+const actions={
+  'logout':()=>{sess={role:null};saveSess();view={...view,gameId:null,userTab:null,reveal:false,adminTab:'painel'};render();top()},
+  'login-person':(el,id)=>{sess={role:'user',pid:id};saveSess();view.userTab=null;view.reveal=false;render();top()},
+  'admin-tab':el=>{view.adminTab=el.dataset.tab;view.gameId=null;render();top()},
+  'user-tab':el=>{view.userTab=el.dataset.tab;render();top()},
+  'ask-close-event':()=>{const n=S.games.filter(g=>g.status!=='pontuado').length;
+    confirmBox('Encerrar o evento?',`Todos os participantes passarão a ver o <b>ranking geral</b>, todos os jogos jogados e os vencedores com pontuação — sem os valores em dinheiro.${n?`<br><br>⚠️ Ainda há <b>${n} jogo(s)</b> sem resultado.`:''}`,'Encerrar evento',()=>{S.event.open=false;S.event.closedAt=Date.now();toast('Evento encerrado. Ranking final liberado! 🏁')})},
+  'ask-reopen-event':()=>confirmBox('Reabrir o evento?','Os jogos voltam a ficar abertos e ativos e o ranking final deixa de ser exibido aos participantes.','Reabrir',()=>{S.event.open=true;S.event.closedAt=null;toast('Evento reaberto.')},false),
+  'new-game':()=>{if(!S.event.open)return toast('Evento encerrado.');openModal('Novo jogo ou gincana',GameForm())},
+  'open-game':(el,id)=>{view.adminTab='jogos';view.gameId=id;render();top()},
+  'close-game':()=>{view.gameId=null;render();top()},
+  'edit-game':()=>{const g=curGame();if(g)openModal('Editar jogo',GameForm(g))},
+  'ask-delete-game':()=>{const g=curGame();if(!g)return;confirmBox('Excluir jogo?',`"${esc(g.name)}" e a pontuação registrada nele serão removidos.`,'Excluir',()=>{S.games=S.games.filter(x=>x.id!==g.id);view.gameId=null;toast('Jogo excluído.')})},
+  'add-group-to-game':(el,id)=>{const g=curGame();g.participants=[...new Set([...g.participants,...S.people.filter(p=>p.groupId===id).map(p=>p.id)])];commit()},
+  'add-all-to-game':()=>{const g=curGame();g.participants=S.people.map(p=>p.id);commit()},
+  'clear-game':()=>{const g=curGame();g.participants=[];g.results=[];g.groupResults=[];if(g.status==='pontuado')g.status='aberto';commit()},
+  'save-results':()=>{const g=curGame();if(!g||!S.event.open)return;
+    const picks=[...document.querySelectorAll('.res-row')].map(r=>{
+      let place=0;
+      if(g.scoring==='vitoria')place=r.querySelector('.res-win').checked?1:0;
+      else{const c=r.querySelector('.res-place:checked');place=c?Number(c.value):0}
+      return{key:r.dataset.key,place,points:Math.max(0,parseInt(r.querySelector('.res-pts').value,10)||0),prize:Math.max(0,parseFloat(r.querySelector('.res-prize').value)||0)};
+    }).filter(x=>x.place>0);
+    const now=Date.now(),was=g.status==='pontuado';
+    const keepAt=(old,x)=>was&&old&&old.place===x.place&&old.points===x.points&&old.at?old.at:now;
+    if(g.mode==='grupo'){
+      // pontuação do grupo é replicada para cada membro atual do grupo
+      g.participants=S.people.filter(p=>g.groups.includes(p.groupId)).map(p=>p.id);
+      g.groupResults=picks.map(x=>({gid:x.key,place:x.place,points:x.points,prize:x.prize,at:keepAt(g.groupResults.find(o=>o.gid===x.key),x)}));
+      g.results=[];g.groupResults.forEach(x=>membersOf(x.gid).forEach(p=>g.results.push({pid:p.id,gid:x.gid,place:x.place,points:x.points,prize:x.prize,at:x.at})));
+    }else{
+      g.results=picks.map(x=>({pid:x.key,place:x.place,points:x.points,prize:x.prize,at:keepAt(g.results.find(o=>o.pid===x.key),x)}));g.groupResults=[];
+    }
+    g.status='pontuado';
+    const n=picks.length,who=g.mode==='grupo'?'grupo(s)':'pessoa(s)';
+    commit(n?(g.scoring==='colocacao'?`Colocações salvas: ${n} ${who} no pódio 🥇`:`Pontuação salva: ${n} ${who} vencedora(s) 🏆`):'Resultado salvo sem vencedores.')},
+  'person-detail':(el,id)=>{const p=person(id);if(p)openModal(Avatar(p)+' '+esc(p.name),PersonDetail(p))},
+  'ask-delete-person':(el,id)=>{const p=person(id);confirmBox('Excluir participante?',`${esc(p.name)} será removido de todos os jogos e rankings.`,'Excluir',()=>{S.people=S.people.filter(x=>x.id!==id);S.games.forEach(g=>{g.participants=g.participants.filter(x=>x!==id);g.results=g.results.filter(r=>r.pid!==id)});toast('Participante excluído.')})},
+  'remove-from-group':(el,id)=>{const p=person(id);if(p){p.groupId=null;commit(`${p.name} saiu do grupo.`)}},
+  'edit-group':(el,id)=>{const g=S.groups.find(x=>x.id===id);if(g)openModal('Editar grupo',GroupForm(g))},
+  'ask-delete-group':(el,id)=>{const g=S.groups.find(x=>x.id===id);confirmBox('Excluir grupo?',`Os membros de "${esc(g.name)}" ficarão sem grupo. Pontos individuais são mantidos.`,'Excluir',()=>{S.people.forEach(p=>{if(p.groupId===id)p.groupId=null});S.groups=S.groups.filter(x=>x.id!==id);S.games.forEach(g=>{g.groups=g.groups.filter(x=>x!==id)});toast('Grupo excluído.')})},
+  'rank-mode':el=>{view.rankMode=el.dataset.mode;render()},
+  'reveal-money':()=>{view.reveal=!view.reveal;render()},
+  'ask-reset':()=>confirmBox('Restaurar dados de exemplo?','Tudo o que foi cadastrado será substituído pelos dados de demonstração.','Restaurar',()=>{S=seed();view.gameId=null;toast('Dados de exemplo restaurados.')}),
+  'ask-clear':()=>confirmBox('Começar do zero?','Apaga jogos, participantes e grupos. O nome do evento é mantido.','Apagar tudo',()=>{S={event:{name:S.event.name,open:true,closedAt:null},groups:[],people:[],games:[]};view.gameId=null;toast('Tudo limpo. Comece cadastrando grupos e pessoas.')}),
+  'close-modal':closeModal,
+  'modal-bg':closeModal,
+  'confirm-yes':()=>{const f=pendingConfirm;closeModal();if(f)f();save();render()}
+};
+const forms={
+  'admin-login':fd=>{if((fd.pin||'').trim()===ADMIN_PIN){sess={role:'admin'};saveSess();view.adminTab='painel';render();top()}else toast('PIN incorreto.')},
+  'event-info':fd=>{const n=(fd.name||'').trim();if(n){S.event.name=n;commit('Nome do evento atualizado.')}},
+  'game':fd=>{const name=(fd.name||'').trim();if(!name)return;
+    const int=v=>Math.max(0,parseInt(v,10)||0),num=v=>Math.max(0,parseFloat(v)||0);
+    const data={name,type:fd.type==='Jogo'?'Jogo':'Gincana',mode:fd.mode==='grupo'?'grupo':'individual',scoring:fd.scoring==='colocacao'?'colocacao':'vitoria',
+      points:int(fd.points),prize:num(fd.prize),places:[1,2,3].map(n=>({points:int(fd['p'+n]),prize:num(fd['r'+n])})),desc:(fd.desc||'').trim()};
+    if(fd.id){
+      const g=S.games.find(x=>x.id===fd.id);let msg='Jogo atualizado.';
+      if(g.mode!==data.mode||g.scoring!==data.scoring){
+        if(g.status==='pontuado')msg='Formato alterado: registre o resultado novamente.';
+        g.results=[];g.groupResults=[];g.status='aberto';
+        if(data.mode==='grupo'&&!g.groups.length)g.groups=S.groups.map(x=>x.id);
+        if(data.mode==='individual')g.participants=g.mode==='grupo'?partsOf(g):g.participants;
+      }
+      Object.assign(g,data);closeModal();commit(msg);
+    }else{
+      const g={id:uid(),...data,participants:[],groups:data.mode==='grupo'?S.groups.map(x=>x.id):[],results:[],groupResults:[],status:'aberto'};
+      S.games.push(g);view.adminTab='jogos';view.gameId=g.id;closeModal();
+      commit(data.mode==='grupo'?'Gincana criada! Confira os grupos participantes.':'Jogo criado! Agora adicione os participantes.');top();
+    }},
+  'add-person':fd=>{const n=(fd.name||'').trim();if(!n)return;S.people.push({id:uid(),name:n,groupId:fd.groupId||null});view.lastGroup=fd.groupId||'';commit(`${n} adicionado(a).`);const i=document.querySelector('[data-form="add-person"] input[name="name"]');if(i)i.focus()},
+  'edit-person':fd=>{const p=person(fd.id);const n=(fd.name||'').trim();if(!p||!n)return;p.name=n;p.groupId=fd.groupId||null;closeModal();commit('Participante atualizado.')},
+  'group':fd=>{const n=(fd.name||'').trim();if(!n)return;
+    if(fd.id){Object.assign(S.groups.find(g=>g.id===fd.id),{name:n,icon:fd.icon,color:fd.color});closeModal();commit('Grupo atualizado.')}
+    else{S.groups.push({id:uid(),name:n,icon:fd.icon||ICONS[0],color:fd.color||COLORS[0]});commit(`Grupo ${n} criado.`)}}
+};
+function GameForm(g){
+  g=g||{};
+  const mode=g.mode||'individual',scoring=g.scoring||'vitoria',places=g.places||defPlaces();
+  return `<form data-form="game" class="stack" data-mode="${mode}" data-scoring="${scoring}">${g.id?`<input type="hidden" name="id" value="${g.id}">`:''}
+    <label class="fld">Nome<input name="name" required maxlength="60" value="${esc(g.name||'')}" placeholder="Ex.: Corrida do Caldeirão"></label>
+    <label class="fld">Tipo<select name="type">${['Gincana','Jogo'].map(t=>`<option ${g.type===t?'selected':''}>${t}</option>`).join('')}</select></label>
+    <div><div class="lbl">Quem pontua</div><div class="opt-cards">
+      <label class="oc"><input type="radio" name="mode" value="individual" data-change="game-form" ${mode==='individual'?'checked':''}><span><b>👤 Individual</b><small>Cada pessoa pontua pelo próprio resultado</small></span></label>
+      <label class="oc"><input type="radio" name="mode" value="grupo" data-change="game-form" ${mode==='grupo'?'checked':''}><span><b>👥 Por grupo</b><small>Todos do grupo recebem a mesma pontuação</small></span></label></div></div>
+    <div><div class="lbl">Como registrar o resultado</div><div class="opt-cards">
+      <label class="oc"><input type="radio" name="scoring" value="vitoria" data-change="game-form" ${scoring==='vitoria'?'checked':''}><span><b>🏆 Vencedor</b><small>Marca quem venceu (vitória ou derrota)</small></span></label>
+      <label class="oc"><input type="radio" name="scoring" value="colocacao" data-change="game-form" ${scoring==='colocacao'?'checked':''}><span><b>🥇 1º, 2º e 3º lugar</b><small>Pontuação diferente por colocação</small></span></label></div></div>
+    <div class="two only-vit"><label class="fld">Pontos por vitória<input name="points" type="number" min="0" step="1" value="${g.points??10}"></label>
+      <label class="fld">Prêmio por vitória (R$)<input name="prize" type="number" min="0" step="0.01" value="${g.prize??20}"></label></div>
+    <div class="only-col"><div class="places-grid"><span></span><span class="ph">Pontos</span><span class="ph">Prêmio (R$)</span>
+      ${places.map((p,i)=>`<span class="pl">${medalOf(i+1)} ${i+1}º</span><input name="p${i+1}" type="number" min="0" step="1" value="${p.points}" aria-label="Pontos ${i+1}º lugar"><input name="r${i+1}" type="number" min="0" step="0.01" value="${p.prize}" aria-label="Prêmio ${i+1}º lugar">`).join('')}</div></div>
+    <p class="muted small only-grp">No modo por grupo, pontos e prêmio são <b>por membro</b>: cada pessoa do grupo recebe o valor cheio.</p>
+    <label class="fld">Descrição (opcional)<input name="desc" maxlength="120" value="${esc(g.desc||'')}" placeholder="Regras ou observações"></label>
+    ${g.id&&g.status==='pontuado'?'<p class="muted small">Mudar valores aqui não altera resultados já registrados (ajuste no passo 2). Mudar o formato apaga o resultado registrado.</p>':''}
+    <div class="row end gap"><button type="button" class="btn ghost" data-action="close-modal">Cancelar</button><button class="btn primary" type="submit">${g.id?'Salvar':'Criar e escolher participantes'}</button></div>
+  </form>`;
+}
+const changes={
+  'toggle-part':t=>{const g=curGame();if(!g)return;const id=t.value;
+    if(t.checked){if(!g.participants.includes(id))g.participants.push(id)}
+    else{g.participants=g.participants.filter(x=>x!==id);g.results=g.results.filter(r=>r.pid!==id)}
+    commit()},
+  'toggle-game-group':t=>{const g=curGame();if(!g)return;const id=t.value;
+    if(t.checked){if(!g.groups.includes(id))g.groups.push(id)}
+    else{g.groups=g.groups.filter(x=>x!==id);g.groupResults=g.groupResults.filter(x=>x.gid!==id);g.results=g.results.filter(r=>r.gid!==id)}
+    if(g.status==='pontuado')g.participants=S.people.filter(p=>g.groups.includes(p.groupId)).map(p=>p.id);
+    commit()},
+  'game-form':t=>{const f=t.form;f.dataset.mode=f.elements.mode.value;f.dataset.scoring=f.elements.scoring.value},
+  'add-to-group':t=>{const p=person(t.value);if(!p)return;const g=S.groups.find(x=>x.id===t.dataset.id);p.groupId=g.id;commit(`${p.name} entrou em ${g.name}.`)}
+};
+
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-action]');if(!el)return;
+  const a=el.dataset.action;
+  if(a==='modal-bg'&&e.target!==el)return;
+  if(el.disabled)return;
+  const h=actions[a];if(h)h(el,el.dataset.id,e);
+});
+document.addEventListener('submit',e=>{
+  const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();
+  const h=forms[f.dataset.form];if(h)h(Object.fromEntries(new FormData(f)),f);
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.classList.contains('res-win')){t.closest('.res-row').classList.toggle('win',t.checked);return}
+  if(t.classList.contains('res-place')){
+    const row=t.closest('.res-row'),n=Number(t.value),g=curGame();
+    row.classList.toggle('win',n>0);
+    if(n>0&&g){row.querySelector('.res-pts').value=g.places[n-1].points;row.querySelector('.res-prize').value=g.places[n-1].prize}
+    return;
+  }
+  const h=changes[t.dataset.change];if(h)h(t);
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modal-root').innerHTML)closeModal()});
+
+render();
+})();
+</script>
+</body>
+</html>
