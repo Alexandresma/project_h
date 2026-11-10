@@ -320,3 +320,27 @@ body.busy{cursor:progress}
 body.busy #app,body.busy #modal-root{pointer-events:none}
 body.busy #app{opacity:.75;transition:opacity .2s}
 .badge.nopwd{background:rgba(255,84,112,.18);color:#ff8fa3}
+
+/* Leilão */
+.boxes{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
+@media(max-width:420px){.boxes{grid-template-columns:repeat(2,1fr)}}
+.box{position:relative;background:var(--s2);border:1px solid var(--bd);border-radius:16px;padding:10px 8px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px;transition:border-color .15s,transform .1s}
+button.box{cursor:pointer}button.box:hover{border-color:var(--or)}button.box:active{transform:scale(.98)}
+.box svg{width:100%;max-width:118px;height:auto;display:block}
+.box-num{font-weight:900;font-size:1.02rem}
+.box-sub{font-size:.76rem;color:var(--mu);font-weight:700;min-height:1.1em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.box.sold svg{filter:grayscale(.55) brightness(.62)}
+.stamp{position:absolute;top:36%;left:50%;transform:translate(-50%,-50%) rotate(-14deg);border:3px solid var(--rd);color:var(--rd);font-weight:900;letter-spacing:.12em;padding:3px 10px;border-radius:8px;background:rgba(17,12,24,.78);font-size:.92rem;pointer-events:none;white-space:nowrap}
+.box.mine{border-color:var(--go);background:rgba(255,207,74,.07)}
+.box.mine .stamp{border-color:var(--go);color:var(--go)}
+.box-modal{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.box-modal .box{width:118px;flex:none}
+.boxes-form{display:grid;grid-template-columns:130px 1fr auto;gap:12px;align-items:end;margin-top:12px}
+@media(max-width:620px){.boxes-form{grid-template-columns:1fr}}
+.wallet{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 10px}
+.wallet div{background:rgba(0,0,0,.2);border-radius:12px;padding:8px 12px;display:flex;flex-direction:column;min-width:0}
+.wallet small{color:var(--mu);font-weight:700;font-size:.76rem}
+.wallet b{font-weight:900;white-space:nowrap}
+.spent{color:var(--rd)!important}
+.neg{color:var(--rd)!important}
+.sale-preview{background:var(--s2);border-radius:12px;padding:10px 12px;font-weight:700;font-size:.9rem;line-height:1.5}

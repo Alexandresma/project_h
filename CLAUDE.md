@@ -55,11 +55,23 @@ Cada jogo tem um formato = quem pontua × como registra:
 - Aberto: admin cadastra e pontua; participante vê os próprios dados e o ranking por vitórias.
 - Encerrado: admin não cadastra nem pontua até reabrir; participante vê ranking geral com pontos, pódio, placar de grupos e todos os jogos com vencedores e pontuação — nunca o dinheiro dos outros.
 
+## Leilão de caixas surpresa
+
+Ao final dos jogos, o dinheiro fictício ganho vira saldo para um leilão de caixas surpresa. **Saldo = ganho nos jogos − gasto no leilão.**
+
+- Admin cadastra caixas em lote, numeradas em sequência (#01, #02…), exibidas como caixa de papelão surrada com "?" (ver `BoxSVG()` no protótipo). Conteúdo opcional por caixa, visível só ao admin antes da venda.
+- Admin registra o arremate: escolhe quem arrematou e o valor; a tela mostra saldo antes/depois.
+- Arremate só é aceito com o **evento encerrado** e se o valor **≤ saldo** da pessoa. Ao salvar: caixa recebe selo **VENDIDO** e o valor sai do saldo.
+- Admin pode desfazer a venda (valor volta ao saldo) e excluir caixas não vendidas; vê ganho, gasto e saldo de todos.
+- Participante (evento encerrado) tem a aba **Leilão**: vê todas as caixas, quais estão vendidas e as suas ("É SUA!"); não vê comprador nem preço das caixas dos outros; descobre o conteúdo só das caixas que arrematou.
+- No painel do participante: **Meu dinheiro** (saldo, ganho, gasto) e **Como gastei** (cada caixa: conteúdo, horário, valor; total gasto). Mesma regra de privacidade do prêmio.
+- Implementação: o arremate é uma função do banco que, na mesma transação, confere evento encerrado + caixa disponível (com lock da linha) + saldo suficiente. Saldo é calculado (ganhos − arremates), nunca guardado em coluna. A função do participante só devolve o conteúdo das caixas que ele arrematou.
+
 ## Stack e arquitetura
 
 - Banco: Supabase (PostgreSQL). Migrações versionadas em SQL (`supabase/migrations/`).
 - Front-end: página estática (HTML/CSS/JS, sem build obrigatório) usando `@supabase/supabase-js`; hospedagem gratuita (Netlify, Vercel ou GitHub Pages).
-- Tabelas: evento, grupo, pessoa (com hash da senha), jogo, jogo_grupo, participacao, resultado (colocação, pontos, prêmio, horário).
+- Tabelas: evento, grupo, pessoa (com hash da senha), jogo, jogo_grupo, participacao, resultado (colocação, pontos, prêmio, horário), caixa (número, conteúdo, arrematante, valor, horário da venda).
 - **Participantes não têm conta no Supabase.** Uma função do banco confere participante + senha e devolve um token de sessão; as demais funções (ex.: `fn_meu_painel`, `fn_ranking`) exigem o token.
 - **Acesso do participante só por funções** (RPC, `security definer`), nunca leitura direta das tabelas. RLS ligado em todas as tabelas; a role `anon` só tem EXECUTE nas funções públicas.
 - Status do evento e privacidade do prêmio são aplicados dentro das funções.

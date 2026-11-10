@@ -51,6 +51,8 @@ begin
   -- 0. Banco zerado (desfeito no fim) + um admin de teste
   -- -------------------------------------------------------------------
   update public.evento set aberto = true, encerrado_em = null where id = 1;
+  update public.caixa set pessoa_id = null, valor = null, vendido_em = null;   -- migração 5
+  delete from public.caixa;
   delete from public.resultado;
   delete from public.participacao;
   delete from public.jogo_grupo;
@@ -143,7 +145,7 @@ begin
   -- 4. anon (navegador do participante) não lê nenhuma tabela
   -- -------------------------------------------------------------------
   foreach v_tab in array array['evento','admin','grupo','pessoa','sessao','jogo',
-                               'jogo_grupo','participacao','resultado'] loop
+                               'jogo_grupo','participacao','resultado','caixa'] loop
     v_estado := null;
     begin
       set local role anon;

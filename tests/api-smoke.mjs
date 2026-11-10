@@ -53,15 +53,19 @@ function caminhosPremio(v, caminho = '$', out = []) {
 }
 
 console.log('\n1. Tabelas não podem ser lidas com a chave pública');
-for (const t of ['evento', 'admin', 'grupo', 'pessoa', 'sessao', 'jogo', 'jogo_grupo', 'participacao', 'resultado']) {
+for (const t of ['evento', 'admin', 'grupo', 'pessoa', 'sessao', 'jogo', 'jogo_grupo', 'participacao', 'resultado', 'caixa']) {
   const r = await fetch(`${URL_BASE}/rest/v1/${t}?select=*&limit=1`, { headers: cab });
   const corpo = await r.text();
   check(!r.ok && /42501|permission denied/i.test(corpo), `${t}: negado (HTTP ${r.status})`, corpo);
 }
 
 console.log('\n2. Funções internas e de admin negadas');
-for (const fn of ['fn_admin_ranking', 'fn_admin_placar_grupos', 'fn_ranking_base', 'fn_estatisticas', 'fn_placar_grupos_base']) {
-  const r = await rpc(fn);
+const NADA = '00000000-0000-4000-8000-000000000000';
+for (const [fn, args] of [['fn_admin_ranking'], ['fn_admin_placar_grupos'], ['fn_ranking_base'], ['fn_estatisticas'],
+    ['fn_placar_grupos_base'], ['fn_saldos'], ['fn_admin_adicionar_caixas', { p_qtd: 1 }],
+    ['fn_admin_arrematar', { p_caixa_id: NADA, p_pessoa_id: NADA, p_valor: 1 }],
+    ['fn_admin_desfazer_venda', { p_caixa_id: NADA }]]) {
+  const r = await rpc(fn, args);
   check(r.status >= 400 && /42501|permission denied/i.test(r.corpo), `${fn}: negado (HTTP ${r.status})`, r.json);
 }
 
@@ -103,7 +107,24 @@ if (ranking.json?.aberto) {
   check(final.status === 200 && caminhosPremio(final.json).length === 0, 'resultado final: nenhum prêmio', caminhosPremio(final.json));
 }
 
-console.log('\n6. Sessão');
+console.log('\n6. Leilão: só o meu dinheiro e as minhas caixas');
+const p = painel.json || {};
+check(Math.abs(Number(p.ganho) - Number(p.premio)) < 0.005 && Math.abs(Number(p.saldo) - (Number(p.ganho) - Number(p.gasto))) < 0.005,
+  'painel: saldo = ganho − gasto', { ganho: p.ganho, gasto: p.gasto, saldo: p.saldo });
+const gastoArremates = (p.arremates || []).reduce((s, a) => s + Number(a.valor), 0);
+check(Math.abs(gastoArremates - Number(p.gasto)) < 0.005, 'painel: gasto = soma dos meus arremates');
+const leilao = await rpc('fn_leilao', { p_token: token });
+if (ranking.json?.aberto) {
+  check(leilao.status >= 400, 'leilão bloqueado com evento aberto', leilao.json);
+} else {
+  const caixas = leilao.json?.caixas || [];
+  check(leilao.status === 200, 'fn_leilao responde', leilao.json);
+  check(caixas.filter(c => !c.minha).every(c => Object.keys(c).sort().join() === 'minha,numero,vendida'),
+    'caixas dos outros: só número e vendida (sem comprador, preço nem conteúdo)', caixas.filter(c => !c.minha));
+  check(caixas.filter(c => c.minha).length === (p.arremates || []).length, 'minhas caixas = meus arremates');
+}
+
+console.log('\n7. Sessão');
 const inventado = await rpc('fn_meu_painel', { p_token: 'token-inventado' });
 check(inventado.status >= 400 && /Sessão inválida/.test(inventado.corpo), 'token inventado → "Sessão inválida"', inventado.json);
 await rpc('fn_sair', { p_token: token });

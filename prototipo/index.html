@@ -311,6 +311,30 @@ form[data-mode="individual"] .only-grp{display:none}
 .tag.tie{background:rgba(255,207,74,.16);color:var(--go)}
 .tag.tb{background:rgba(155,92,255,.16);color:#c9a8ff}
 
+/* Leilão */
+.boxes{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
+@media(max-width:420px){.boxes{grid-template-columns:repeat(2,1fr)}}
+.box{position:relative;background:var(--s2);border:1px solid var(--bd);border-radius:16px;padding:10px 8px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px;transition:border-color .15s,transform .1s}
+button.box{cursor:pointer}button.box:hover{border-color:var(--or)}button.box:active{transform:scale(.98)}
+.box svg{width:100%;max-width:118px;height:auto;display:block}
+.box-num{font-weight:900;font-size:1.02rem}
+.box-sub{font-size:.76rem;color:var(--mu);font-weight:700;min-height:1.1em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.box.sold svg{filter:grayscale(.55) brightness(.62)}
+.stamp{position:absolute;top:36%;left:50%;transform:translate(-50%,-50%) rotate(-14deg);border:3px solid var(--rd);color:var(--rd);font-weight:900;letter-spacing:.12em;padding:3px 10px;border-radius:8px;background:rgba(17,12,24,.78);font-size:.92rem;pointer-events:none;white-space:nowrap}
+.box.mine{border-color:var(--go);background:rgba(255,207,74,.07)}
+.box.mine .stamp{border-color:var(--go);color:var(--go)}
+.box-modal{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.box-modal .box{width:118px;flex:none}
+.boxes-form{display:grid;grid-template-columns:130px 1fr auto;gap:12px;align-items:end;margin-top:12px}
+@media(max-width:620px){.boxes-form{grid-template-columns:1fr}}
+.wallet{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 10px}
+.wallet div{background:rgba(0,0,0,.2);border-radius:12px;padding:8px 12px;display:flex;flex-direction:column;min-width:0}
+.wallet small{color:var(--mu);font-weight:700;font-size:.76rem}
+.wallet b{font-weight:900;white-space:nowrap}
+.spent{color:var(--rd)!important}
+.neg{color:var(--rd)!important}
+.sale-preview{background:var(--s2);border-radius:12px;padding:10px 12px;font-weight:700;font-size:.9rem;line-height:1.5}
+
 /* Modal & toast */
 .overlay{position:fixed;inset:0;z-index:50;background:rgba(5,3,9,.7);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;animation:fade .15s}
 .modal{background:var(--s1);border:1px solid var(--bd);width:100%;max-width:560px;max-height:90vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom));animation:up .2s ease-out}
@@ -362,10 +386,13 @@ function seed(){
   // horário de registro de cada resultado (usado no desempate "quem chegou primeiro")
   const t0=Date.UTC(2026,9,31,22,0);
   games.forEach((g,i)=>{g.results.forEach(r=>r.at=t0+i*25*60000);g.groupResults.forEach(r=>r.at=t0+i*25*60000)});
-  return {event:{name:'Gincana de Halloween',open:true,closedAt:null},groups,people,games};
+  const contents=['Kit de chocolates','Vale-pizza','Caneca assombrada','','Pelúcia de morcego','','Jogo de cartas',''];
+  const auction={items:contents.map((c,i)=>({id:'b'+(i+1),num:i+1,content:c,sold:false}))};
+  return {event:{name:'Gincana de Halloween',open:true,closedAt:null},groups,people,games,auction};
 }
 function defPlaces(){return[{points:10,prize:20},{points:6,prize:10},{points:3,prize:5}]}
 function normalize(d){
+  if(!d.auction||!Array.isArray(d.auction.items))d.auction={items:[]};
   d.games.forEach(g=>{
     if(g.mode!=='grupo')g.mode='individual';
     if(g.scoring!=='colocacao')g.scoring='vitoria';
@@ -410,6 +437,42 @@ function statsOf(pid){
   return s;
 }
 const medalOf=n=>MEDALS[n-1]||'';
+/* ---------- Leilão ---------- */
+const round2=v=>Math.round((Number(v)||0)*100)/100;
+const boxLabel=i=>'Caixa #'+String(i.num).padStart(2,'0');
+const nextNum=()=>S.auction.items.reduce((m,i)=>Math.max(m,i.num),0)+1;
+/* Carteira: ganho nos jogos − gasto no leilão = saldo */
+function walletOf(pid){
+  const earned=round2(statsOf(pid).prize);
+  const buys=S.auction.items.filter(i=>i.sold&&i.buyerId===pid).sort((a,b)=>a.soldAt-b.soldAt);
+  const spent=round2(buys.reduce((a,i)=>a+i.price,0));
+  return{earned,spent,balance:round2(earned-spent),buys};
+}
+function BoxSVG(){
+  return `<svg viewBox="0 0 120 112" aria-hidden="true">
+    <ellipse cx="60" cy="105" rx="47" ry="6" fill="rgba(0,0,0,.35)"/>
+    <polygon points="26,40 94,40 90,13 32,17" fill="#8e6033" stroke="#6b4420" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M14 40 L106 40 L103 101 L17 103 Z" fill="#c08a52" stroke="#6b4420" stroke-width="2.2" stroke-linejoin="round"/>
+    <polygon points="14,40 54,40 41,25 3,31" fill="#d39d63" stroke="#6b4420" stroke-width="2" stroke-linejoin="round"/>
+    <polygon points="66,40 106,40 117,27 79,22" fill="#ad7741" stroke="#6b4420" stroke-width="2" stroke-linejoin="round"/>
+    <rect x="52" y="40" width="16" height="62" fill="#e6d29c" opacity=".5"/>
+    <polygon points="52,40 68,40 66,47 61,44 56,48 52,45" fill="#e6d29c" opacity=".75"/>
+    <polygon points="17,103 17,91 27,103" fill="#8a5a2c"/>
+    <circle cx="32" cy="86" r="7" fill="#9e6a37" opacity=".55"/>
+    <circle cx="90" cy="54" r="4" fill="#9e6a37" opacity=".45"/>
+    <path d="M23 52 l9 3 M86 92 l10 -5 M93 58 q-6 7 0 13 M30 68 l6 -2" stroke="#7d5127" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+    <path d="M41 25 l-5 -2 M106 40 l3 -6" stroke="#6b4420" stroke-width="1.4" stroke-linecap="round"/>
+    <text x="60" y="89" text-anchor="middle" font-family="Nunito,Arial,sans-serif" font-weight="900" font-size="46" fill="#2a180a" transform="rotate(-8 60 74)">?</text>
+  </svg>`;
+}
+function Wallet(w){
+  return `<button type="button" class="money-big" data-action="reveal-money" aria-label="${view.reveal?'Ocultar':'Revelar'} valores"><span class="mval ${w.balance<0?'neg':''}">${BRL(w.balance)}</span><small>Saldo disponível · ${view.reveal?'toque para ocultar':'toque para revelar'}</small></button>
+  <div class="wallet"><div><small>Ganhei nos jogos</small><b class="mval money">${BRL(w.earned)}</b></div><div><small>Gastei no leilão</small><b class="mval spent">${w.spent?'− '+BRL(w.spent):BRL(0)}</b></div></div>`;
+}
+function SpentList(w){
+  if(!w.buys.length)return Empty('Nenhuma caixa arrematada ainda.');
+  return `<ul class="mini">${w.buys.map(i=>`<li><span>📦 ${boxLabel(i)}<small>${i.content?esc(i.content)+' · ':''}arrematada às ${new Date(i.soldAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</small></span><span class="mini-r"><b class="mval spent">− ${BRL(i.price)}</b></span></li>`).join('')}</ul>`;
+}
 function placeText(g,place){return g.scoring==='vitoria'?'Vitória':medalOf(place)+' '+place+'º lugar'}
 function ModeBadges(g){
   return `<span class="badge mode">${g.mode==='grupo'?'👥 Por grupo':'👤 Individual'}</span><span class="badge">${g.scoring==='colocacao'?'🥇 1º/2º/3º':'🏆 Vencedor'}</span>`;
@@ -551,8 +614,8 @@ function Login(){
 
 /* ---------- Admin ---------- */
 function Admin(){
-  const tabs=[{id:'painel',ico:'🏠',label:'Painel'},{id:'jogos',ico:'🎲',label:'Jogos'},{id:'pessoas',ico:'👥',label:'Pessoas'},{id:'grupos',ico:'🏴',label:'Grupos'},{id:'ranking',ico:'🏆',label:'Ranking'}];
-  const map={painel:AdminPainel,jogos:AdminJogos,pessoas:AdminPessoas,grupos:AdminGrupos,ranking:AdminRanking};
+  const tabs=[{id:'painel',ico:'🏠',label:'Painel'},{id:'jogos',ico:'🎲',label:'Jogos'},{id:'pessoas',ico:'👥',label:'Pessoas'},{id:'grupos',ico:'🏴',label:'Grupos'},{id:'ranking',ico:'🏆',label:'Ranking'},{id:'leilao',ico:'🎁',label:'Leilão'}];
+  const map={painel:AdminPainel,jogos:AdminJogos,pessoas:AdminPessoas,grupos:AdminGrupos,ranking:AdminRanking,leilao:AdminLeilao};
   return Header('Administrador')+Nav(tabs,view.adminTab,'admin-tab')+`<main class="wrap main">${(map[view.adminTab]||AdminPainel)()}</main>`;
 }
 function AdminPainel(){
@@ -654,12 +717,15 @@ function AdminPessoas(){
   <section class="card"><div class="card-h"><h3>👥 Participantes <span class="muted small">(${rows.length})</span></h3><span class="muted small">Toque para ver tudo e editar</span></div>
     ${rows.length?`<div class="list">${rows.map(p=>{const s=statsOf(p.id);return `<button type="button" class="list-row" data-action="person-detail" data-id="${p.id}">${Avatar(p)}
       <span class="lr-main"><b>${esc(p.name)}</b><small>${GroupLabel(p)} · ${s.played} ${s.played===1?'jogo':'jogos'}</small></span>
-      <span class="lr-side"><span><b>${s.wins}</b> vit.</span><span><b>${s.points}</b> pts</span><span class="money">${BRL(s.prize)}</span></span><span class="chev">›</span></button>`}).join('')}</div>`:Empty('Nenhum participante. Adicione acima.')}
+      <span class="lr-side"><span><b>${s.wins}</b> vit.</span><span><b>${s.points}</b> pts</span><span class="money" title="Saldo">${BRL(walletOf(p.id).balance)}</span></span><span class="chev">›</span></button>`}).join('')}</div>`:Empty('Nenhum participante. Adicione acima.')}
   </section>`;
 }
 function PersonDetail(p){
   const s=statsOf(p.id),games=S.games.filter(g=>partsOf(g).includes(p.id));
-  return `<div class="tiles t3">${Tile(s.points,'Pontos')}${Tile(s.wins,'Vitórias')}${Tile(BRL(s.prize),'Prêmio','money')}</div>
+  const w=walletOf(p.id);
+  return `<div class="tiles t3">${Tile(s.points,'Pontos')}${Tile(s.wins,'Vitórias')}${Tile(BRL(w.balance),'Saldo','money')}</div>
+  <p class="muted small" style="margin-top:8px">Ganhou <b class="money">${BRL(w.earned)}</b> nos jogos · gastou <b class="spent">${BRL(w.spent)}</b> no leilão</p>
+  ${w.buys.length?`<h4>Arremates (${w.buys.length})</h4>${SpentList(w)}`:''}
   <h4>Jogos (${games.length})</h4>
   ${games.length?`<ul class="mini">${games.map(g=>{const r=resultOf(g,p.id);return `<li><span>${esc(g.name)}<small>${g.type} · ${g.mode==='grupo'?'por grupo':'individual'}</small></span><span class="row gap">${r?`<small>+${r.points} pts · <span class="money">${BRL(r.prize)}</span></small>`:''}${ResultBadge(g,p.id)}</span></li>`}).join('')}</ul>`:Empty('Ainda não participou de nenhum jogo.')}
   <h4>Dados</h4>
@@ -694,30 +760,83 @@ function AdminRanking(){
   ${m==='pessoas'?RankList(ranking(rule()),{money:true}):GroupRank({money:true})}</section>`;
 }
 
+function AdminLeilao(){
+  const o=S.event.open,items=S.auction.items.slice().sort((a,b)=>a.num-b.num);
+  const sold=items.filter(i=>i.sold),total=round2(sold.reduce((a,i)=>a+i.price,0));
+  const wallets=S.people.map(p=>({p,...walletOf(p.id)})).sort((a,b)=>b.balance-a.balance||a.p.name.localeCompare(b.p.name,'pt-BR'));
+  return `<h2>🎁 Leilão de caixas surpresa</h2>
+  ${o?'<div class="notice">⏳ O leilão é feito com os prêmios do final dos jogos: os arremates só podem ser registrados depois de encerrar o evento no Painel. Já dá para cadastrar as caixas.</div>':''}
+  <div class="tiles t3">${Tile(items.length,'Caixas')}${Tile(sold.length,'Vendidas')}${Tile(BRL(total),'Arrecadado','money')}</div>
+  <section class="card"><h3>➕ Adicionar caixas</h3>
+    <form data-form="add-boxes" class="boxes-form">
+      <label class="fld">Quantidade<input name="qty" type="number" min="1" max="50" step="1" value="5" required></label>
+      <p class="muted small">Numeradas a partir de <b>#${String(nextNum()).padStart(2,'0')}</b>. O conteúdo de cada caixa é opcional: só você vê, e o arrematante descobre depois de comprar.</p>
+      <button class="btn primary" type="submit">Adicionar</button></form></section>
+  <section class="card"><div class="card-h"><h3>📦 Caixas</h3><span class="muted small">Toque numa caixa para ${o?'editar':'registrar o arremate'}</span></div>
+    ${items.length?`<div class="boxes">${items.map(i=>{const b=i.sold?person(i.buyerId):null;return `<button type="button" class="box ${i.sold?'sold':''}" data-action="open-box" data-id="${i.id}" aria-label="${boxLabel(i)}${i.sold?' vendida':''}">${BoxSVG()}${i.sold?'<span class="stamp">VENDIDO</span>':''}<span class="box-num">${boxLabel(i)}</span><span class="box-sub">${i.sold?`${esc(b?b.name:'—')} · <span class="money">${BRL(i.price)}</span>`:(i.content?'🔒 '+esc(i.content):'Disponível')}</span></button>`}).join('')}</div>`:Empty('Nenhuma caixa cadastrada.')}
+  </section>
+  <section class="card"><div class="card-h"><h3>💰 Saldos dos participantes</h3><span class="muted small">Ganho nos jogos − gasto no leilão</span></div>
+    ${wallets.length?`<div class="list">${wallets.map(w=>`<div class="list-row" style="cursor:default">${Avatar(w.p)}<span class="lr-main"><b>${esc(w.p.name)}</b><small>Ganhou ${BRL(w.earned)} · gastou ${BRL(w.spent)}${w.buys.length?` (${w.buys.map(boxLabel).join(', ')})`:''}</small></span><b class="money ${w.balance<0?'neg':''}">${BRL(w.balance)}</b></div>`).join('')}</div>`:Empty('Nenhum participante.')}
+  </section>`;
+}
+function BoxModal(i){
+  const b=i.sold?person(i.buyerId):null;
+  const head=`<div class="box-modal"><div class="box ${i.sold?'sold':''}">${BoxSVG()}${i.sold?'<span class="stamp">VENDIDO</span>':''}</div>
+    <div><div class="eyebrow">${boxLabel(i)}</div><p class="muted small" style="margin-top:4px">${i.content?`Conteúdo: <b style="color:var(--tx)">${esc(i.content)}</b>`:'Conteúdo não informado'}</p></div></div>`;
+  if(i.sold)return head+`<div class="sale-preview">Arrematada por <b>${esc(b?b.name:'—')}</b> por <b class="money">${BRL(i.price)}</b><br><small class="muted">${new Date(i.soldAt).toLocaleString('pt-BR')}</small></div>
+    <div class="row between gap" style="margin-top:16px"><button type="button" class="btn ghost danger-tx" data-action="ask-undo-sale" data-id="${i.id}">Desfazer venda</button><button type="button" class="btn" data-action="close-modal">Fechar</button></div>`;
+  const open=S.event.open;
+  const ppl=S.people.slice().sort((a,c)=>a.name.localeCompare(c.name,'pt-BR'));
+  return head+`<form data-form="sell-box" class="stack"><input type="hidden" name="id" value="${i.id}">
+    <label class="fld">Conteúdo (opcional — só você e o arrematante veem)<input name="content" maxlength="60" value="${esc(i.content||'')}" placeholder="Ex.: kit de chocolates"></label>
+    ${open?'<div class="notice">🔒 Encerre o evento no Painel para registrar o arremate. Por enquanto dá para salvar o conteúdo.</div>':`
+    <div class="two"><label class="fld">Quem arrematou<select name="buyer" data-change="sale-preview"><option value="">Escolha…</option>${ppl.map(p=>{const w=walletOf(p.id);return `<option value="${p.id}" data-bal="${w.balance}">${esc(p.name)} — saldo ${BRL(w.balance)}</option>`}).join('')}</select></label>
+      <label class="fld">Valor arrematado (R$)<input name="price" type="number" min="0.01" step="0.01" placeholder="0,00" data-input="sale-preview"></label></div>
+    <div class="sale-preview" data-preview>Escolha quem arrematou e o valor.</div>`}
+    <div class="row between gap" style="flex-wrap:wrap"><button type="button" class="btn ghost danger-tx" data-action="ask-delete-box" data-id="${i.id}">Excluir caixa</button>
+      <div class="row gap">${open?'<button class="btn primary" type="submit">Salvar</button>':`<button type="button" class="btn" data-action="save-box-content" data-id="${i.id}">Só salvar conteúdo</button><button class="btn primary" type="submit">Registrar arremate</button>`}</div></div>
+  </form>`;
+}
+function salePreview(f){
+  const sel=f&&f.elements.buyer,box=f&&f.querySelector('[data-preview]');if(!sel||!box)return;
+  if(!sel.value){box.textContent='Escolha quem arrematou e o valor.';return}
+  const bal=Number(sel.selectedOptions[0].dataset.bal),price=round2(f.elements.price.value),after=round2(bal-price);
+  box.innerHTML=`Saldo atual: <b class="money">${BRL(bal)}</b> → depois do arremate: <b class="money ${after<0?'neg':''}">${BRL(after)}</b>${after<0?'<br><small class="neg">Saldo insuficiente para esse valor.</small>':''}`;
+}
+
 /* ---------- Participante ---------- */
 function User(){
   const p=person(sess.pid);
   if(!p){sess={role:null};saveSess();return Login()}
   const o=S.event.open;
   const tabs=o?[{id:'eu',ico:'🎃',label:'Meu painel'},{id:'jogos',ico:'🎲',label:'Meus jogos'},{id:'ranking',ico:'🏆',label:'Ranking'}]
-              :[{id:'final',ico:'🏁',label:'Resultado'},{id:'todos',ico:'🎲',label:'Jogos'},{id:'eu',ico:'🎃',label:'Meu painel'}];
+              :[{id:'final',ico:'🏁',label:'Resultado'},{id:'todos',ico:'🎲',label:'Jogos'},{id:'leilao',ico:'🎁',label:'Leilão'},{id:'eu',ico:'🎃',label:'Meu painel'}];
   if(!tabs.some(t=>t.id===view.userTab))view.userTab=tabs[0].id;
-  const map={eu:UserEu,jogos:UserJogos,ranking:UserRanking,final:UserFinal,todos:UserTodos};
+  const map={eu:UserEu,jogos:UserJogos,ranking:UserRanking,final:UserFinal,todos:UserTodos,leilao:UserLeilao};
   const banner=!o&&view.userTab!=='final'?'<div class="closed-banner">🏁 Evento encerrado — veja o resultado final na aba Resultado.</div>':'';
   return Header('Participante · '+esc(p.name))+Nav(tabs,view.userTab,'user-tab')+`<main class="wrap main ${view.reveal?'':'hide-money'}">${banner}${map[view.userTab](p)}</main>`;
 }
 function UserEu(p){
-  const s=statsOf(p.id),g=groupOf(p),o=S.event.open;
+  const s=statsOf(p.id),g=groupOf(p),o=S.event.open,w=walletOf(p.id);
   const me=ranking(o?'wins':'points').find(r=>r.pid===p.id);
   const wins=S.games.filter(x=>resultOf(x,p.id)).sort((a,b)=>resultOf(a,p.id).place-resultOf(b,p.id).place);
   return `<section class="card me-hero" style="--c:${g?g.color:'#6b5a85'}">${Avatar(p,'lg')}<div><div class="eyebrow">Olá,</div><h2>${esc(p.name)}</h2><span class="g-badge">${g?esc(g.icon+' Grupo '+g.name):'Sem grupo'}</span></div></section>
   <div class="tiles t3">${Tile(s.points,'Pontuação')}${Tile(s.wins,s.wins===1?'Vitória':'Vitórias')}${Tile(me.scored?me.pos+'º'+(me.tied?' 🤝':''):'—',o?(me.tied?'No ranking (empate)':'No ranking'):(me.tied?'Posição final (empate)':'Posição final'))}</div>
-  <section class="card private"><div class="card-h"><h3>🔒 Meu prêmio</h3><span class="badge priv">Só você vê</span></div>
-    <button type="button" class="money-big" data-action="reveal-money" aria-label="${view.reveal?'Ocultar':'Revelar'} prêmio"><span class="mval">${BRL(s.prize)}</span><small>${view.reveal?'Toque para ocultar':'Toque para revelar'}</small></button>
-    <p class="muted small">Valor fictício acumulado pelas suas vitórias. É individual: os outros participantes não veem.</p></section>
+  <section class="card private"><div class="card-h"><h3>🔒 Meu dinheiro</h3><span class="badge priv">Só você vê</span></div>
+    ${Wallet(w)}
+    <p class="muted small">Valor fictício ganho nas vitórias e colocações e usado no leilão de caixas surpresa. Os outros participantes não veem.</p></section>
+  ${o&&!w.buys.length?'':`<section class="card"><div class="card-h"><h3>🛍️ Como gastei</h3><span class="muted small">Total gasto: <b class="mval spent">${BRL(w.spent)}</b></span></div>${SpentList(w)}</section>`}
   <section class="card"><div class="card-h"><h3>🏆 Minhas vitórias e colocações</h3></div>
     ${wins.length?`<ul class="mini">${wins.map(x=>{const r=resultOf(x,p.id);return `<li><span>${winIco(x,r.place)} ${esc(x.name)}<small>${placeText(x,r.place)}${x.mode==='grupo'?' · com o grupo':''}</small></span><span class="mini-r"><b>+${r.points} pts</b><small class="mval">${BRL(r.prize)}</small></span></li>`}).join('')}</ul>`:Empty('Nenhuma vitória ainda. Bora assombrar! 👻')}
   </section>`;
+}
+function UserLeilao(p){
+  const items=S.auction.items.slice().sort((a,b)=>a.num-b.num),w=walletOf(p.id);
+  return `<section class="card private"><div class="card-h"><h3>🔒 Meu saldo para o leilão</h3><span class="badge priv">Só você vê</span></div>${Wallet(w)}</section>
+  <section class="card"><div class="card-h"><h3>🎁 Caixas surpresa</h3><span class="muted small">${items.filter(i=>!i.sold).length} de ${items.length} disponíveis</span></div>
+    ${items.length?`<div class="boxes">${items.map(i=>{const mine=i.sold&&i.buyerId===p.id;return `<div class="box ${i.sold?'sold':''} ${mine?'mine':''}">${BoxSVG()}${i.sold?`<span class="stamp">${mine?'É SUA!':'VENDIDO'}</span>`:''}<span class="box-num">${boxLabel(i)}</span><span class="box-sub">${mine?(i.content?'🎉 '+esc(i.content):'Arrematada por você'):(i.sold?'Vendida':'Disponível')}</span></div>`}).join('')}</div>`:Empty('As caixas ainda não foram cadastradas.')}
+  </section>
+  <section class="card"><div class="card-h"><h3>🛍️ Como gastei</h3><span class="muted small">Total gasto: <b class="mval spent">${BRL(w.spent)}</b></span></div>${SpentList(w)}</section>`;
 }
 function UserJogos(p){
   const games=S.games.filter(g=>partsOf(g).includes(p.id));
@@ -806,19 +925,37 @@ const actions={
     const n=picks.length,who=g.mode==='grupo'?'grupo(s)':'pessoa(s)';
     commit(n?(g.scoring==='colocacao'?`Colocações salvas: ${n} ${who} no pódio 🥇`:`Pontuação salva: ${n} ${who} vencedora(s) 🏆`):'Resultado salvo sem vencedores.')},
   'person-detail':(el,id)=>{const p=person(id);if(p)openModal(Avatar(p)+' '+esc(p.name),PersonDetail(p))},
-  'ask-delete-person':(el,id)=>{const p=person(id);confirmBox('Excluir participante?',`${esc(p.name)} será removido de todos os jogos e rankings.`,'Excluir',()=>{S.people=S.people.filter(x=>x.id!==id);S.games.forEach(g=>{g.participants=g.participants.filter(x=>x!==id);g.results=g.results.filter(r=>r.pid!==id)});toast('Participante excluído.')})},
+  'ask-delete-person':(el,id)=>{const p=person(id);confirmBox('Excluir participante?',`${esc(p.name)} será removido de todos os jogos e rankings. Caixas arrematadas por essa pessoa voltam a ficar disponíveis.`,'Excluir',()=>{S.people=S.people.filter(x=>x.id!==id);S.auction.items.forEach(i=>{if(i.buyerId===id)unsell(i)});S.games.forEach(g=>{g.participants=g.participants.filter(x=>x!==id);g.results=g.results.filter(r=>r.pid!==id)});toast('Participante excluído.')})},
   'remove-from-group':(el,id)=>{const p=person(id);if(p){p.groupId=null;commit(`${p.name} saiu do grupo.`)}},
   'edit-group':(el,id)=>{const g=S.groups.find(x=>x.id===id);if(g)openModal('Editar grupo',GroupForm(g))},
   'ask-delete-group':(el,id)=>{const g=S.groups.find(x=>x.id===id);confirmBox('Excluir grupo?',`Os membros de "${esc(g.name)}" ficarão sem grupo. Pontos individuais são mantidos.`,'Excluir',()=>{S.people.forEach(p=>{if(p.groupId===id)p.groupId=null});S.groups=S.groups.filter(x=>x.id!==id);S.games.forEach(g=>{g.groups=g.groups.filter(x=>x!==id)});toast('Grupo excluído.')})},
   'rank-mode':el=>{view.rankMode=el.dataset.mode;render()},
   'reveal-money':()=>{view.reveal=!view.reveal;render()},
+  'open-box':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);if(i)openModal('📦 '+boxLabel(i),BoxModal(i))},
+  'save-box-content':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);const f=el.closest('form');if(!i||!f)return;i.content=f.elements.content.value.trim();closeModal();commit('Conteúdo salvo.')},
+  'ask-undo-sale':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);if(!i)return;const b=person(i.buyerId);
+    confirmBox('Desfazer a venda?',`${boxLabel(i)} volta a ficar disponível e ${BRL(i.price)} voltam para o saldo de ${esc(b?b.name:'—')}.`,'Desfazer venda',()=>{unsell(i);toast('Venda desfeita. Valor devolvido ao saldo.')})},
+  'ask-delete-box':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);if(!i)return;confirmBox('Excluir caixa?',`${boxLabel(i)} será removida do leilão.`,'Excluir',()=>{S.auction.items=S.auction.items.filter(x=>x.id!==id);toast('Caixa excluída.')})},
   'ask-reset':()=>confirmBox('Restaurar dados de exemplo?','Tudo o que foi cadastrado será substituído pelos dados de demonstração.','Restaurar',()=>{S=seed();view.gameId=null;toast('Dados de exemplo restaurados.')}),
-  'ask-clear':()=>confirmBox('Começar do zero?','Apaga jogos, participantes e grupos. O nome do evento é mantido.','Apagar tudo',()=>{S={event:{name:S.event.name,open:true,closedAt:null},groups:[],people:[],games:[]};view.gameId=null;toast('Tudo limpo. Comece cadastrando grupos e pessoas.')}),
+  'ask-clear':()=>confirmBox('Começar do zero?','Apaga jogos, participantes, grupos e caixas do leilão. O nome do evento é mantido.','Apagar tudo',()=>{S={event:{name:S.event.name,open:true,closedAt:null},groups:[],people:[],games:[],auction:{items:[]}};view.gameId=null;toast('Tudo limpo. Comece cadastrando grupos e pessoas.')}),
   'close-modal':closeModal,
   'modal-bg':closeModal,
   'confirm-yes':()=>{const f=pendingConfirm;closeModal();if(f)f();save();render()}
 };
+function unsell(i){i.sold=false;delete i.buyerId;delete i.price;delete i.soldAt}
 const forms={
+  'add-boxes':fd=>{const n=Math.min(50,Math.max(1,parseInt(fd.qty,10)||0));let num=nextNum();
+    for(let k=0;k<n;k++)S.auction.items.push({id:uid(),num:num++,content:'',sold:false});commit(`${n} caixa(s) adicionada(s).`)},
+  'sell-box':fd=>{const i=S.auction.items.find(x=>x.id===fd.id);if(!i||i.sold)return;
+    i.content=(fd.content||'').trim();
+    if(S.event.open){closeModal();commit('Caixa salva.');return}
+    const p=person(fd.buyer),price=round2(fd.price);
+    if(!p)return toast('Escolha quem arrematou.');
+    if(!(price>0))return toast('Informe o valor arrematado.');
+    const w=walletOf(p.id);
+    if(price>w.balance)return toast(`Saldo insuficiente: ${p.name} tem ${BRL(w.balance)}.`);
+    Object.assign(i,{sold:true,buyerId:p.id,price,soldAt:Date.now()});
+    closeModal();commit(`${boxLabel(i)} vendida para ${p.name} por ${BRL(price)} 🎁`)},
   'admin-login':fd=>{if((fd.pin||'').trim()===ADMIN_PIN){sess={role:'admin'};saveSess();view.adminTab='painel';render();top()}else toast('PIN incorreto.')},
   'event-info':fd=>{const n=(fd.name||'').trim();if(n){S.event.name=n;commit('Nome do evento atualizado.')}},
   'game':fd=>{const name=(fd.name||'').trim();if(!name)return;
@@ -877,6 +1014,7 @@ const changes={
     else{g.groups=g.groups.filter(x=>x!==id);g.groupResults=g.groupResults.filter(x=>x.gid!==id);g.results=g.results.filter(r=>r.gid!==id)}
     if(g.status==='pontuado')g.participants=S.people.filter(p=>g.groups.includes(p.groupId)).map(p=>p.id);
     commit()},
+  'sale-preview':t=>salePreview(t.form),
   'game-form':t=>{const f=t.form;f.dataset.mode=f.elements.mode.value;f.dataset.scoring=f.elements.scoring.value},
   'add-to-group':t=>{const p=person(t.value);if(!p)return;const g=S.groups.find(x=>x.id===t.dataset.id);p.groupId=g.id;commit(`${p.name} entrou em ${g.name}.`)}
 };
@@ -903,6 +1041,7 @@ document.addEventListener('change',e=>{
   }
   const h=changes[t.dataset.change];if(h)h(t);
 });
+document.addEventListener('input',e=>{if(e.target.dataset&&e.target.dataset.input==='sale-preview')salePreview(e.target.form)});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modal-root').innerHTML)closeModal()});
 
 render();

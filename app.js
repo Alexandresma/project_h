@@ -17,7 +17,8 @@ const CFG=window.GINCANA_CONFIG||{};
 const configOk=/^https:\/\/.+/.test(CFG.SUPABASE_URL||'')&&!/COLE-AQUI/.test(CFG.SUPABASE_URL+CFG.SUPABASE_KEY);
 const chaveSecreta=/sb_secret_|service_role/.test(CFG.SUPABASE_KEY||'')||jwtRole(CFG.SUPABASE_KEY)==='service_role';
 function jwtRole(k){try{return JSON.parse(atob(String(k).split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).role}catch(e){return null}}
-const sb=configOk&&!chaveSecreta&&window.supabase?window.supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_KEY,{auth:{persistSession:true,storageKey:'gincana-admin'}}):null;
+const URL_BASE=String(CFG.SUPABASE_URL||'').trim().replace(/\/+(rest\/v1\/*)?$/,'');   // aceita a URL copiada com /rest/v1/
+const sb=configOk&&!chaveSecreta&&window.supabase?window.supabase.createClient(URL_BASE,CFG.SUPABASE_KEY,{auth:{persistSession:true,storageKey:'gincana-admin'}}):null;
 
 async function rpc(fn,args){const{data,error}=await sb.rpc(fn,args||{});if(error)throw error;return data}
 async function q(p){const{data,error}=await p;if(error)throw error;return data}
@@ -47,7 +48,7 @@ const grp=x=>x?{id:x.id,name:x.nome,icon:x.icone,color:x.cor}:null;
 async function carregarLogin(){L=await rpc('fn_lista_login')}
 
 async function carregarAdmin(){
-  const [ev,grupos,pessoas,jogos,jg,part,res,rk,gr]=await Promise.all([
+  const [ev,grupos,pessoas,jogos,jg,part,res,cx,rk,gr]=await Promise.all([
     q(sb.from('evento').select('nome,aberto').eq('id',1).single()),
     q(sb.from('grupo').select('id,nome,cor,icone,criado_em').order('criado_em')),
     q(sb.from('pessoa').select('id,nome,grupo_id,tem_senha,bloqueado_ate').order('nome')),
@@ -55,6 +56,7 @@ async function carregarAdmin(){
     q(sb.from('jogo_grupo').select('jogo_id,grupo_id')),
     q(sb.from('participacao').select('jogo_id,pessoa_id')),
     q(sb.from('resultado').select('jogo_id,pessoa_id,grupo_id,colocacao,pontos,premio,registrado_em')),
+    q(sb.from('caixa').select('id,numero,conteudo,pessoa_id,valor,vendido_em').order('numero')),
     rpc('fn_admin_ranking'),
     rpc('fn_admin_placar_grupos')]);
   S={
@@ -71,6 +73,7 @@ async function carregarAdmin(){
         groups:jg.filter(x=>x.jogo_id===j.id).map(x=>x.grupo_id),
         results,groupResults,status:j.pontuado_em?'pontuado':'aberto'};
     }),
+    auction:{items:cx.map(c=>({id:c.id,num:c.numero,content:c.conteudo||'',sold:!!c.pessoa_id,buyerId:c.pessoa_id,price:Number(c.valor||0),soldAt:c.vendido_em}))},
     rank:rk.map(r=>({pid:r.pessoa_id,name:r.nome,grp:grp(r.grupo),points:r.pontos,wins:r.vitorias,prize:Number(r.premio),pos:r.posicao,scored:r.pontuou,tied:r.empate,tiebreak:r.no_desempate})),
     groupRank:gr.map(grRow)
   };
@@ -84,8 +87,14 @@ async function rpcU(fn){
 }
 async function carregarUser(){
   const [painel,jogos,ranking]=await Promise.all([rpcU('fn_meu_painel'),rpcU('fn_meus_jogos'),rpcU('fn_ranking')]);
-  const final=painel.evento.aberto?null:await rpcU('fn_resultado_final');
-  U={painel,jogos,ranking,final};
+  const [final,leilao]=painel.evento.aberto?[null,null]:await Promise.all([rpcU('fn_resultado_final'),rpcU('fn_leilao')]);
+  U={painel,jogos,ranking,final,leilao};
+}
+/* Carteira do participante (só dele, vinda de fn_meu_painel) */
+function walletU(){
+  const P=U.painel;
+  return{earned:Number(P.ganho||0),spent:Number(P.gasto||0),balance:Number(P.saldo||0),
+    buys:(P.arremates||[]).map(a=>({num:a.numero,content:a.conteudo||'',price:Number(a.valor),soldAt:a.vendido_em}))};
 }
 const rankRow=r=>({pid:r.pessoa_id,name:r.nome,grp:grp(r.grupo),points:r.pontos,wins:r.vitorias,pos:r.posicao,scored:r.pontuou,tied:r.empate,tiebreak:r.no_desempate});
 
@@ -150,6 +159,43 @@ const rule=()=>S.event.open?'wins':'points';
 /* Ranking e placar vêm prontos do servidor (mesma ordem que o participante vê) */
 const ranking=()=>S.rank;
 const groupTotals=gid=>S.groupRank.find(x=>x.g.id===gid)||{points:0,wins:0,prize:0};
+
+/* ---------- Leilão ---------- */
+const round2=v=>Math.round((Number(v)||0)*100)/100;
+const boxLabel=i=>'Caixa #'+String(i.num).padStart(2,'0');
+const nextNum=()=>S.auction.items.reduce((m,i)=>Math.max(m,i.num),0)+1;
+/* Carteira (admin): ganho nos jogos − gasto no leilão = saldo. O banco confere de novo no arremate. */
+function walletOf(pid){
+  const earned=round2(statsOf(pid).prize);
+  const buys=S.auction.items.filter(i=>i.sold&&i.buyerId===pid).sort((a,b)=>new Date(a.soldAt)-new Date(b.soldAt));
+  const spent=round2(buys.reduce((a,i)=>a+i.price,0));
+  return{earned,spent,balance:round2(earned-spent),buys};
+}
+function BoxSVG(){
+  return `<svg viewBox="0 0 120 112" aria-hidden="true">
+    <ellipse cx="60" cy="105" rx="47" ry="6" fill="rgba(0,0,0,.35)"/>
+    <polygon points="26,40 94,40 90,13 32,17" fill="#8e6033" stroke="#6b4420" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M14 40 L106 40 L103 101 L17 103 Z" fill="#c08a52" stroke="#6b4420" stroke-width="2.2" stroke-linejoin="round"/>
+    <polygon points="14,40 54,40 41,25 3,31" fill="#d39d63" stroke="#6b4420" stroke-width="2" stroke-linejoin="round"/>
+    <polygon points="66,40 106,40 117,27 79,22" fill="#ad7741" stroke="#6b4420" stroke-width="2" stroke-linejoin="round"/>
+    <rect x="52" y="40" width="16" height="62" fill="#e6d29c" opacity=".5"/>
+    <polygon points="52,40 68,40 66,47 61,44 56,48 52,45" fill="#e6d29c" opacity=".75"/>
+    <polygon points="17,103 17,91 27,103" fill="#8a5a2c"/>
+    <circle cx="32" cy="86" r="7" fill="#9e6a37" opacity=".55"/>
+    <circle cx="90" cy="54" r="4" fill="#9e6a37" opacity=".45"/>
+    <path d="M23 52 l9 3 M86 92 l10 -5 M93 58 q-6 7 0 13 M30 68 l6 -2" stroke="#7d5127" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+    <path d="M41 25 l-5 -2 M106 40 l3 -6" stroke="#6b4420" stroke-width="1.4" stroke-linecap="round"/>
+    <text x="60" y="89" text-anchor="middle" font-family="Nunito,Arial,sans-serif" font-weight="900" font-size="46" fill="#2a180a" transform="rotate(-8 60 74)">?</text>
+  </svg>`;
+}
+function Wallet(w){
+  return `<button type="button" class="money-big" data-action="reveal-money" aria-label="${view.reveal?'Ocultar':'Revelar'} valores"><span class="mval ${w.balance<0?'neg':''}">${BRL(w.balance)}</span><small>Saldo disponível · ${view.reveal?'toque para ocultar':'toque para revelar'}</small></button>
+  <div class="wallet"><div><small>Ganhei nos jogos</small><b class="mval money">${BRL(w.earned)}</b></div><div><small>Gastei no leilão</small><b class="mval spent">${w.spent?'− '+BRL(w.spent):BRL(0)}</b></div></div>`;
+}
+function SpentList(w){
+  if(!w.buys.length)return Empty('Nenhuma caixa arrematada ainda.');
+  return `<ul class="mini">${w.buys.map(i=>`<li><span>📦 ${boxLabel(i)}<small>${i.content?esc(i.content)+' · ':''}arrematada às ${hora(i.soldAt)}</small></span><span class="mini-r"><b class="mval spent">− ${BRL(i.price)}</b></span></li>`).join('')}</ul>`;
+}
 
 /* ---------- Textos e peças ---------- */
 const medalOf=n=>MEDALS[n-1]||'';
@@ -272,8 +318,8 @@ function PersonLoginForm(id,nome){
 
 /* ---------- Admin ---------- */
 function Admin(){
-  const tabs=[{id:'painel',ico:'🏠',label:'Painel'},{id:'jogos',ico:'🎲',label:'Jogos'},{id:'pessoas',ico:'👥',label:'Pessoas'},{id:'grupos',ico:'🏴',label:'Grupos'},{id:'ranking',ico:'🏆',label:'Ranking'}];
-  const map={painel:AdminPainel,jogos:AdminJogos,pessoas:AdminPessoas,grupos:AdminGrupos,ranking:AdminRanking};
+  const tabs=[{id:'painel',ico:'🏠',label:'Painel'},{id:'jogos',ico:'🎲',label:'Jogos'},{id:'pessoas',ico:'👥',label:'Pessoas'},{id:'grupos',ico:'🏴',label:'Grupos'},{id:'ranking',ico:'🏆',label:'Ranking'},{id:'leilao',ico:'🎁',label:'Leilão'}];
+  const map={painel:AdminPainel,jogos:AdminJogos,pessoas:AdminPessoas,grupos:AdminGrupos,ranking:AdminRanking,leilao:AdminLeilao};
   return Header(S.event,'Administrador')+Nav(tabs,view.adminTab,'admin-tab')+`<main class="wrap main">${(map[view.adminTab]||AdminPainel)()}</main>`;
 }
 function AdminPainel(){
@@ -379,13 +425,16 @@ function AdminPessoas(){
   <section class="card"><div class="card-h"><h3>👥 Participantes <span class="muted small">(${rows.length})</span></h3><span class="muted small">Toque para ver tudo, editar e definir a senha</span></div>
     ${rows.length?`<div class="list">${rows.map(p=>{const s=statsOf(p.id);return `<button type="button" class="list-row" data-action="person-detail" data-id="${p.id}">${Avatar(p)}
       <span class="lr-main"><b>${esc(p.name)} ${PwdBadge(p)}</b><small>${GroupLabel(p)} · ${s.played} ${s.played===1?'jogo':'jogos'}</small></span>
-      <span class="lr-side"><span><b>${s.wins}</b> vit.</span><span><b>${s.points}</b> pts</span><span class="money">${BRL(s.prize)}</span></span><span class="chev">›</span></button>`}).join('')}</div>`:Empty('Nenhum participante. Adicione acima.')}
+      <span class="lr-side"><span><b>${s.wins}</b> vit.</span><span><b>${s.points}</b> pts</span><span class="money" title="Saldo">${BRL(walletOf(p.id).balance)}</span></span><span class="chev">›</span></button>`}).join('')}</div>`:Empty('Nenhum participante. Adicione acima.')}
   </section>`;
 }
 function PersonDetail(p){
   const s=statsOf(p.id),games=S.games.filter(g=>partsOf(g).includes(p.id)||resultOf(g,p.id));
   const o=S.event.open;
-  return `<div class="tiles t3">${Tile(s.points,'Pontos')}${Tile(s.wins,'Vitórias')}${Tile(BRL(s.prize),'Prêmio','money')}</div>
+  const w=walletOf(p.id);
+  return `<div class="tiles t3">${Tile(s.points,'Pontos')}${Tile(s.wins,'Vitórias')}${Tile(BRL(w.balance),'Saldo','money')}</div>
+  <p class="muted small" style="margin-top:8px">Ganhou <b class="money">${BRL(w.earned)}</b> nos jogos · gastou <b class="spent">${BRL(w.spent)}</b> no leilão</p>
+  ${w.buys.length?`<h4>Arremates (${w.buys.length})</h4>${SpentList(w)}`:''}
   <h4>Jogos (${games.length})</h4>
   ${games.length?`<ul class="mini">${games.map(g=>{const r=resultOf(g,p.id);return `<li><span>${esc(g.name)}<small>${g.type} · ${g.mode==='grupo'?'por grupo':'individual'}</small></span><span class="row gap">${r?`<small>+${r.points} pts · <span class="money">${BRL(r.prize)}</span></small>`:''}${ResultBadge(g.status==='pontuado',g.scoring,r)}</span></li>`}).join('')}</ul>`:Empty('Ainda não participou de nenhum jogo.')}
   <h4>🔑 Senha de acesso</h4>
@@ -429,25 +478,70 @@ function AdminRanking(){
   ${m==='pessoas'?RankList(ranking(),{money:true}):GroupRank(S.groupRank,{money:true})}</section>`;
 }
 
+function AdminLeilao(){
+  const o=S.event.open,items=S.auction.items.slice().sort((a,b)=>a.num-b.num);
+  const sold=items.filter(i=>i.sold),total=round2(sold.reduce((a,i)=>a+i.price,0));
+  const wallets=S.people.map(p=>({p,...walletOf(p.id)})).sort((a,b)=>b.balance-a.balance||a.p.name.localeCompare(b.p.name,'pt-BR'));
+  return `<h2>🎁 Leilão de caixas surpresa</h2>
+  ${o?'<div class="notice">⏳ O leilão é feito com os prêmios do final dos jogos: os arremates só podem ser registrados depois de encerrar o evento no Painel. Já dá para cadastrar as caixas.</div>':''}
+  <div class="tiles t3">${Tile(items.length,'Caixas')}${Tile(sold.length,'Vendidas')}${Tile(BRL(total),'Arrecadado','money')}</div>
+  <section class="card"><h3>➕ Adicionar caixas</h3>
+    <form data-form="add-boxes" class="boxes-form">
+      <label class="fld">Quantidade<input name="qty" type="number" min="1" max="50" step="1" value="5" required></label>
+      <p class="muted small">Numeradas a partir de <b>#${String(nextNum()).padStart(2,'0')}</b>. O conteúdo de cada caixa é opcional: só você vê, e o arrematante descobre depois de comprar.</p>
+      <button class="btn primary" type="submit">Adicionar</button></form></section>
+  <section class="card"><div class="card-h"><h3>📦 Caixas</h3><span class="muted small">Toque numa caixa para ${o?'editar':'registrar o arremate'}</span></div>
+    ${items.length?`<div class="boxes">${items.map(i=>{const b=i.sold?person(i.buyerId):null;return `<button type="button" class="box ${i.sold?'sold':''}" data-action="open-box" data-id="${i.id}" aria-label="${boxLabel(i)}${i.sold?' vendida':''}">${BoxSVG()}${i.sold?'<span class="stamp">VENDIDO</span>':''}<span class="box-num">${boxLabel(i)}</span><span class="box-sub">${i.sold?`${esc(b?b.name:'—')} · <span class="money">${BRL(i.price)}</span>`:(i.content?'🔒 '+esc(i.content):'Disponível')}</span></button>`}).join('')}</div>`:Empty('Nenhuma caixa cadastrada.')}
+  </section>
+  <section class="card"><div class="card-h"><h3>💰 Saldos dos participantes</h3><span class="muted small">Ganho nos jogos − gasto no leilão</span></div>
+    ${wallets.length?`<div class="list">${wallets.map(w=>`<div class="list-row" style="cursor:default">${Avatar(w.p)}<span class="lr-main"><b>${esc(w.p.name)}</b><small>Ganhou ${BRL(w.earned)} · gastou ${BRL(w.spent)}${w.buys.length?` (${w.buys.map(boxLabel).join(', ')})`:''}</small></span><b class="money ${w.balance<0?'neg':''}">${BRL(w.balance)}</b></div>`).join('')}</div>`:Empty('Nenhum participante.')}
+  </section>`;
+}
+function BoxModal(i){
+  const b=i.sold?person(i.buyerId):null;
+  const head=`<div class="box-modal"><div class="box ${i.sold?'sold':''}">${BoxSVG()}${i.sold?'<span class="stamp">VENDIDO</span>':''}</div>
+    <div><div class="eyebrow">${boxLabel(i)}</div><p class="muted small" style="margin-top:4px">${i.content?`Conteúdo: <b style="color:var(--tx)">${esc(i.content)}</b>`:'Conteúdo não informado'}</p></div></div>`;
+  if(i.sold)return head+`<div class="sale-preview">Arrematada por <b>${esc(b?b.name:'—')}</b> por <b class="money">${BRL(i.price)}</b><br><small class="muted">${new Date(i.soldAt).toLocaleString('pt-BR')}</small></div>
+    <div class="row between gap" style="margin-top:16px"><button type="button" class="btn ghost danger-tx" data-action="ask-undo-sale" data-id="${i.id}">Desfazer venda</button><button type="button" class="btn" data-action="close-modal">Fechar</button></div>`;
+  const open=S.event.open;
+  const ppl=S.people.slice().sort((a,c)=>a.name.localeCompare(c.name,'pt-BR'));
+  return head+`<form data-form="sell-box" class="stack"><input type="hidden" name="id" value="${i.id}">
+    <label class="fld">Conteúdo (opcional — só você e o arrematante veem)<input name="content" maxlength="60" value="${esc(i.content||'')}" placeholder="Ex.: kit de chocolates"></label>
+    ${open?'<div class="notice">🔒 Encerre o evento no Painel para registrar o arremate. Por enquanto dá para salvar o conteúdo.</div>':`
+    <div class="two"><label class="fld">Quem arrematou<select name="buyer" data-change="sale-preview"><option value="">Escolha…</option>${ppl.map(p=>{const w=walletOf(p.id);return `<option value="${p.id}" data-bal="${w.balance}">${esc(p.name)} — saldo ${BRL(w.balance)}</option>`}).join('')}</select></label>
+      <label class="fld">Valor arrematado (R$)<input name="price" type="number" min="0.01" step="0.01" placeholder="0,00" data-input="sale-preview"></label></div>
+    <div class="sale-preview" data-preview>Escolha quem arrematou e o valor.</div>`}
+    <div class="row between gap" style="flex-wrap:wrap"><button type="button" class="btn ghost danger-tx" data-action="ask-delete-box" data-id="${i.id}">Excluir caixa</button>
+      <div class="row gap">${open?'<button class="btn primary" type="submit">Salvar</button>':`<button type="button" class="btn" data-action="save-box-content" data-id="${i.id}">Só salvar conteúdo</button><button class="btn primary" type="submit">Registrar arremate</button>`}</div></div>
+  </form>`;
+}
+function salePreview(f){
+  const sel=f&&f.elements.buyer,box=f&&f.querySelector('[data-preview]');if(!sel||!box)return;
+  if(!sel.value){box.textContent='Escolha quem arrematou e o valor.';return}
+  const bal=Number(sel.selectedOptions[0].dataset.bal),price=round2(f.elements.price.value),after=round2(bal-price);
+  box.innerHTML=`Saldo atual: <b class="money">${BRL(bal)}</b> → depois do arremate: <b class="money ${after<0?'neg':''}">${BRL(after)}</b>${after<0?'<br><small class="neg">Saldo insuficiente para esse valor.</small>':''}`;
+}
+
 /* ---------- Participante (só dados das funções) ---------- */
 function User(){
   const P=U.painel,o=P.evento.aberto;
   const tabs=o?[{id:'eu',ico:'🎃',label:'Meu painel'},{id:'jogos',ico:'🎲',label:'Meus jogos'},{id:'ranking',ico:'🏆',label:'Ranking'}]
-              :[{id:'final',ico:'🏁',label:'Resultado'},{id:'todos',ico:'🎲',label:'Jogos'},{id:'eu',ico:'🎃',label:'Meu painel'}];
+              :[{id:'final',ico:'🏁',label:'Resultado'},{id:'todos',ico:'🎲',label:'Jogos'},{id:'leilao',ico:'🎁',label:'Leilão'},{id:'eu',ico:'🎃',label:'Meu painel'}];
   if(!tabs.some(t=>t.id===view.userTab))view.userTab=tabs[0].id;
-  const map={eu:UserEu,jogos:UserJogos,ranking:UserRanking,final:UserFinal,todos:UserTodos};
+  const map={eu:UserEu,jogos:UserJogos,ranking:UserRanking,final:UserFinal,todos:UserTodos,leilao:UserLeilao};
   const banner=!o&&view.userTab!=='final'?'<div class="closed-banner">🏁 Evento encerrado — veja o resultado final na aba Resultado.</div>':'';
   return Header({name:P.evento.nome,open:o},'Participante · '+esc(P.nome))+Nav(tabs,view.userTab,'user-tab')+`<main class="wrap main ${view.reveal?'':'hide-money'}">${banner}${map[view.userTab]()}</main>`;
 }
 function UserEu(){
-  const P=U.painel,g=grp(P.grupo),o=P.evento.aberto;
+  const P=U.painel,g=grp(P.grupo),o=P.evento.aberto,w=walletU();
   const scored=P.posicao!=null;
   const wins=(P.resultados||[]).slice().sort((a,b)=>a.colocacao-b.colocacao);
   return `<section class="card me-hero" style="--c:${g?g.color:'#6b5a85'}">${Av(P.nome,g,'lg')}<div><div class="eyebrow">Olá,</div><h2>${esc(P.nome)}</h2><span class="g-badge">${g?esc(g.icon+' Grupo '+g.name):'Sem grupo'}</span></div></section>
   <div class="tiles t3">${Tile(P.pontos,'Pontuação')}${Tile(P.vitorias,P.vitorias===1?'Vitória':'Vitórias')}${Tile(scored?P.posicao+'º'+(P.empate?' 🤝':''):'—',o?(P.empate?'No ranking (empate)':'No ranking'):(P.empate?'Posição final (empate)':'Posição final'))}</div>
-  <section class="card private"><div class="card-h"><h3>🔒 Meu prêmio</h3><span class="badge priv">Só você vê</span></div>
-    <button type="button" class="money-big" data-action="reveal-money" aria-label="${view.reveal?'Ocultar':'Revelar'} prêmio"><span class="mval">${BRL(P.premio)}</span><small>${view.reveal?'Toque para ocultar':'Toque para revelar'}</small></button>
-    <p class="muted small">Valor fictício acumulado pelas suas vitórias. É individual: os outros participantes não veem.</p></section>
+  <section class="card private"><div class="card-h"><h3>🔒 Meu dinheiro</h3><span class="badge priv">Só você vê</span></div>
+    ${Wallet(w)}
+    <p class="muted small">Valor fictício ganho nas vitórias e colocações e usado no leilão de caixas surpresa. Os outros participantes não veem.</p></section>
+  ${o&&!w.buys.length?'':`<section class="card"><div class="card-h"><h3>🛍️ Como gastei</h3><span class="muted small">Total gasto: <b class="mval spent">${BRL(w.spent)}</b></span></div>${SpentList(w)}</section>`}
   <section class="card"><div class="card-h"><h3>🏆 Minhas vitórias e colocações</h3></div>
     ${wins.length?`<ul class="mini">${wins.map(x=>`<li><span>${winIco(x.formato,x.colocacao)} ${esc(x.jogo)}<small>${placeText(x.formato,x.colocacao)}${x.modo==='grupo'?' · com o grupo':''}</small></span><span class="mini-r"><b>+${x.pontos} pts</b><small class="mval">${BRL(x.premio)}</small></span></li>`).join('')}</ul>`:Empty('Nenhuma vitória ainda. Bora assombrar! 👻')}
   </section>`;
@@ -471,6 +565,16 @@ function UserFinal(){
   <section class="card"><div class="card-h"><h3>🏆 Pódio</h3></div>${Podium(rk,'points')}</section>
   <section class="card"><div class="card-h"><h3>📋 Ranking geral</h3></div><p class="muted small" style="margin-bottom:12px">${TIE_TEXT.points}</p>${RankList(rk,{me:U.painel.pessoa_id})}</section>
   <section class="card"><div class="card-h"><h3>🏴 Grupos</h3></div>${GroupRank(U.final.grupos.map(grRow))}</section>`;
+}
+/* Caixas vêm de fn_leilao: das dos outros só número e "vendida"; das minhas, o conteúdo */
+function UserLeilao(){
+  if(!U.leilao)return Empty('Carregando o leilão…');
+  const items=U.leilao.caixas.map(c=>({num:c.numero,sold:c.vendida,mine:c.minha,content:c.conteudo||''})),w=walletU();
+  return `<section class="card private"><div class="card-h"><h3>🔒 Meu saldo para o leilão</h3><span class="badge priv">Só você vê</span></div>${Wallet(w)}</section>
+  <section class="card"><div class="card-h"><h3>🎁 Caixas surpresa</h3><span class="muted small">${items.filter(i=>!i.sold).length} de ${items.length} disponíveis</span></div>
+    ${items.length?`<div class="boxes">${items.map(i=>`<div class="box ${i.sold?'sold':''} ${i.mine?'mine':''}">${BoxSVG()}${i.sold?`<span class="stamp">${i.mine?'É SUA!':'VENDIDO'}</span>`:''}<span class="box-num">${boxLabel(i)}</span><span class="box-sub">${i.mine?(i.content?'🎉 '+esc(i.content):'Arrematada por você'):(i.sold?'Vendida':'Disponível')}</span></div>`).join('')}</div>`:Empty('As caixas ainda não foram cadastradas.')}
+  </section>
+  <section class="card"><div class="card-h"><h3>🛍️ Como gastei</h3><span class="muted small">Total gasto: <b class="mval spent">${BRL(w.spent)}</b></span></div>${SpentList(w)}</section>`;
 }
 function UserTodos(){
   if(!U.final)return Empty('Carregando…');
@@ -556,12 +660,22 @@ const actions={
     run(()=>registrar(g.id,itens),n?(g.scoring==='colocacao'?`Colocações salvas: ${n} ${who} no pódio 🥇`:`Pontuação salva: ${n} ${who} vencedora(s) 🏆`):'Resultado salvo sem vencedores.')},
   'person-detail':(el,id)=>openPerson(id),
   'unlock':async(el,id)=>{if(await run(()=>rpc('fn_admin_desbloquear',{p_pessoa_id:id}),'Desbloqueado.'))openPerson(id)},
-  'ask-delete-person':(el,id)=>{const p=person(id);confirmBox('Excluir participante?',`${esc(p.name)} será removido de todos os jogos e rankings.`,'Excluir',
+  'ask-delete-person':(el,id)=>{const p=person(id);confirmBox('Excluir participante?',`${esc(p.name)} será removido de todos os jogos e rankings. Caixas arrematadas por essa pessoa voltam a ficar disponíveis.`,'Excluir',
     ()=>run(()=>q(sb.from('pessoa').delete().eq('id',id)),'Participante excluído.'))},
   'remove-from-group':(el,id)=>{const p=person(id);if(p)run(()=>q(sb.from('pessoa').update({grupo_id:null}).eq('id',id)),`${p.name} saiu do grupo.`)},
   'edit-group':(el,id)=>{const g=S.groups.find(x=>x.id===id);if(g)openModal('Editar grupo',GroupForm(g))},
   'ask-delete-group':(el,id)=>{const g=S.groups.find(x=>x.id===id);confirmBox('Excluir grupo?',`Os membros de "${esc(g.name)}" ficarão sem grupo. Pontos individuais são mantidos.`,'Excluir',
     ()=>run(()=>q(sb.from('grupo').delete().eq('id',id)),'Grupo excluído.'))},
+  'open-box':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);if(i)openModal('📦 '+boxLabel(i),BoxModal(i))},
+  'save-box-content':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);const f=el.closest('form');if(!i||!f)return;
+    const c=f.elements.content.value.trim();closeModal();
+    run(()=>q(sb.from('caixa').update({conteudo:c}).eq('id',i.id)),'Conteúdo salvo.')},
+  'ask-undo-sale':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);if(!i)return;const b=person(i.buyerId);
+    confirmBox('Desfazer a venda?',`${boxLabel(i)} volta a ficar disponível e ${BRL(i.price)} voltam para o saldo de ${esc(b?b.name:'—')}.`,'Desfazer venda',
+      ()=>run(()=>rpc('fn_admin_desfazer_venda',{p_caixa_id:i.id}),'Venda desfeita. Valor devolvido ao saldo.'))},
+  'ask-delete-box':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);if(!i)return;
+    confirmBox('Excluir caixa?',`${boxLabel(i)} será removida do leilão.`,'Excluir',
+      ()=>run(()=>q(sb.from('caixa').delete().eq('id',i.id)),'Caixa excluída.'))},
   'rank-mode':el=>{view.rankMode=el.dataset.mode;render()},
   'reveal-money':()=>{view.reveal=!view.reveal;render()},
   'close-modal':closeModal,
@@ -620,6 +734,21 @@ const forms={
   'set-password':async fd=>{const s=(fd.senha||'').trim();
     if(!/^\d{4,6}$/.test(s))return toast('A senha deve ter de 4 a 6 dígitos.');
     if(await run(()=>rpc('fn_admin_definir_senha',{p_pessoa_id:fd.id,p_senha:s}),'Senha definida. Passe para a pessoa.'))openPerson(fd.id)},
+  'add-boxes':fd=>{const n=Math.min(50,Math.max(1,parseInt(fd.qty,10)||0));
+    run(()=>rpc('fn_admin_adicionar_caixas',{p_qtd:n}),`${n} caixa(s) adicionada(s).`)},
+  /* Arremate: o banco confere de novo evento encerrado, caixa disponível e saldo */
+  'sell-box':fd=>{const i=S.auction.items.find(x=>x.id===fd.id);if(!i||i.sold)return;
+    const content=(fd.content||'').trim();
+    const salvaConteudo=()=>content!==i.content?q(sb.from('caixa').update({conteudo:content}).eq('id',i.id)):null;
+    if(S.event.open){closeModal();run(salvaConteudo,'Caixa salva.');return}
+    const p=person(fd.buyer),price=round2(fd.price);
+    if(!p)return toast('Escolha quem arrematou.');
+    if(!(price>0))return toast('Informe o valor arrematado.');
+    const w=walletOf(p.id);
+    if(price>w.balance)return toast(`Saldo insuficiente: ${p.name} tem ${BRL(w.balance)}.`);
+    closeModal();
+    run(async()=>{await salvaConteudo();await rpc('fn_admin_arrematar',{p_caixa_id:i.id,p_pessoa_id:p.id,p_valor:price})},
+      `${boxLabel(i)} vendida para ${p.name} por ${BRL(price)} 🎁`)},
   'group':fd=>{const n=(fd.name||'').trim();if(!n)return;
     const data={nome:n,icone:fd.icon||ICONS[0],cor:fd.color||COLORS[0]};
     if(fd.id){closeModal();run(()=>q(sb.from('grupo').update(data).eq('id',fd.id)),'Grupo atualizado.')}
@@ -654,6 +783,7 @@ const changes={
   'toggle-game-group':t=>{const g=curGame();if(!g)return;const id=t.value;
     if(t.checked)run(()=>addGroups(g.id,[id]));
     else run(async()=>{await regravarSem(g,{gid:id});await q(sb.from('jogo_grupo').delete().eq('jogo_id',g.id).eq('grupo_id',id))})},
+  'sale-preview':t=>salePreview(t.form),
   'game-form':t=>{const f=t.form;f.dataset.mode=f.elements.mode.value;f.dataset.scoring=f.elements.scoring.value},
   'add-to-group':t=>{const p=person(t.value);if(!p)return;const g=S.groups.find(x=>x.id===t.dataset.id);
     run(()=>q(sb.from('pessoa').update({grupo_id:g.id}).eq('id',p.id)),`${p.name} entrou em ${g.name}.`)}
@@ -681,6 +811,7 @@ document.addEventListener('change',e=>{
   }
   const h=changes[t.dataset.change];if(h)h(t);
 });
+document.addEventListener('input',e=>{if(e.target.dataset&&e.target.dataset.input==='sale-preview')salePreview(e.target.form)});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modal-root').innerHTML)closeModal()});
 /* Participante: atualiza ao voltar para a página */
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshUser()});

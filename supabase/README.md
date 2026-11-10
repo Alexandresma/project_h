@@ -10,6 +10,7 @@ Fase 1: só o banco. As telas serão ligadas depois que os testes abaixo passare
    2. `migrations/20261110000002_funcoes.sql`
    3. `migrations/20261110000003_permissoes.sql`
    4. `migrations/20261110000004_tem_senha.sql` (o admin vê quem já tem senha)
+   5. `migrations/20261110000005_leilao.sql` (leilão de caixas surpresa)
 
    (Quem tiver a CLI pode usar `npx supabase link` + `npx supabase db push`.)
 
@@ -28,7 +29,7 @@ Fase 1: só o banco. As telas serão ligadas depois que os testes abaixo passare
 
 Cole `tests/privacidade.sql` inteiro no SQL Editor e rode.
 
-- ✅ `ERROR: TESTES OK: 139 verificações passaram…` → passou. Aparece como **erro de propósito**: é assim que o Postgres desfaz tudo o que o teste gravou.
+- ✅ `ERROR: TESTES OK: 140 verificações passaram…` → passou. Aparece como **erro de propósito**: é assim que o Postgres desfaz tudo o que o teste gravou.
 - ❌ `ERROR: FALHOU: …` → diz qual regra quebrou. Nada fica gravado.
 
 Durante o teste ele apaga e recria dados dentro de uma transação que sempre é desfeita. Seus dados reais voltam intactos, mas **não rode durante o evento** (as tabelas ficam travadas por alguns segundos).
@@ -44,6 +45,12 @@ O que ele verifica:
 - Jogo por grupo: todos os membros iguais e conta uma vez no placar de grupos.
 - Evento encerrado bloqueia cadastro e pontuação; reabrir libera.
 - Mudar o formato apaga o resultado.
+
+### Teste do leilão (SQL)
+
+Depois da migração 5, cole `tests/leilao.sql` inteiro e rode. Passou → `ERROR: TESTES OK (leilão): 50 verificações passaram…` (também é erro de propósito, nada fica gravado).
+
+Verifica: caixas numeradas em sequência; admin não vende nem cria caixa por fora das funções; arremate recusado com evento aberto, acima do saldo, valor ≤ 0 ou com mais de 2 casas; caixa vendida não é vendida de novo nem excluída; desfazer devolve o saldo; saldo = ganho − gasto; `anon` não lê `caixa` nem executa as funções de admin; **para cada participante**, nenhum valor, saldo ou conteúdo de caixa de outra pessoa aparece no que as funções devolvem; o participante vê o conteúdo só das caixas dele; leilão some com o evento aberto; excluir uma pessoa devolve as caixas dela.
 
 ## 4. Teste pela API (o que o navegador realmente recebe)
 
@@ -80,10 +87,11 @@ Depois apague a pessoa de teste: `delete from public.pessoa where nome = 'Teste 
 | Participante | `fn_lista_login()` | evento + nomes e grupos |
 | | `fn_entrar(p_pessoa_id, p_senha)` | `{token}` ou `{erro}` |
 | | `fn_sair(p_token)` | — |
-| | `fn_meu_painel(p_token)` | meus pontos, vitórias, posição, **meu prêmio**, meus resultados |
+| | `fn_meu_painel(p_token)` | meus pontos, vitórias, posição, **meu prêmio**, meu saldo (ganho, gasto, saldo), meus arremates, meus resultados |
 | | `fn_meus_jogos(p_token)` | meus jogos e meu resultado em cada um |
 | | `fn_ranking(p_token)` | ranking (aberto: só vitórias; encerrado: + pontos) |
 | | `fn_resultado_final(p_token)` | só encerrado: ranking, grupos, jogos e vencedores |
+| | `fn_leilao(p_token)` | só encerrado: caixas (número, vendida, minha); conteúdo/valor só das minhas |
 | Admin (Auth) | `fn_is_admin()` | sou o admin? |
 | | `fn_admin_definir_senha(p_pessoa_id, p_senha)` | 4 a 6 dígitos |
 | | `fn_admin_desbloquear(p_pessoa_id)` | — |
@@ -91,5 +99,8 @@ Depois apague a pessoa de teste: `delete from public.pessoa where nome = 'Teste 
 | | `fn_admin_limpar_resultado(p_jogo_id)` | volta a "aguardando" |
 | | `fn_admin_encerrar()` / `fn_admin_reabrir()` | — |
 | | `fn_admin_ranking()` / `fn_admin_placar_grupos()` | com prêmio de todos |
+| | `fn_admin_adicionar_caixas(p_qtd)` | 1 a 50 caixas, numeradas em sequência |
+| | `fn_admin_arrematar(p_caixa_id, p_pessoa_id, p_valor)` | só encerrado e valor ≤ saldo; devolve saldo antes/depois |
+| | `fn_admin_desfazer_venda(p_caixa_id)` | caixa volta a ficar disponível |
 
 Cadastro de grupos, pessoas, jogos e participantes: o admin grava direto nas tabelas (RLS só deixa o admin). Em `pessoa`, liste as colunas (`select('id,nome,grupo_id,bloqueado_ate')`), nunca `select('*')`: `senha_hash` não é legível.

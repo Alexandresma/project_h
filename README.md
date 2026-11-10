@@ -12,7 +12,7 @@ App web (celular primeiro) para organizar a gincana. Página estática — HTML,
 
 ## Rodar
 
-1. Banco pronto e testado: siga [supabase/README.md](supabase/README.md) (inclusive a migração 4).
+1. Banco pronto e testado: siga [supabase/README.md](supabase/README.md) (migrações 1 a 5).
 2. Em `config.js`, cole a **Project URL** e a chave **publishable** (ou anon) de *Project Settings → API Keys*. Nunca a secret/service_role — o app se recusa a abrir com ela.
 3. Sirva a pasta e abra no navegador:
 
@@ -41,4 +41,5 @@ Para atualizar o site depois: `git add -A`, `git commit -m "..."`, `git push`.
 ## Como entrar
 
 - **Administrador**: e-mail e senha do usuário criado no Supabase Auth e marcado na tabela `admin`.
+- **Leilão de caixas surpresa**: o admin cadastra as caixas na aba *Leilão* (dá para fazer antes) e, depois de encerrar o evento, registra cada arremate. Saldo = ganho nos jogos − gasto no leilão; o banco recusa valor acima do saldo.
 - **Participante**: toca no próprio nome e digita a senha (4 a 6 dígitos) que o administrador definiu em *Pessoas → toque no nome → Senha de acesso*. Fica conectado até tocar em "Sair".
