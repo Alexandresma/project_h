@@ -286,7 +286,7 @@ begin
     perform public.fn_admin_desfazer_doacao(t2);
   exception when others then v_msg := sqlerrm;
   end;
-  assert v_msg = 'Carla já usou parte desse valor. Desfaça antes o arremate que usou o dinheiro.',
+  assert v_msg = 'Carla já usou parte desse valor. Desfaça antes o arremate ou a doação que usou o dinheiro.',
     'FALHOU: desfazer doação já gasta: ' || coalesce(v_msg, 'passou');
   reset role;
   perform set_config('request.jwt.claims', '{}', true);
@@ -496,7 +496,7 @@ begin
   v_r := public.fn_entrar(carla, '6103');
   v_painel := public.fn_meu_painel(v_r->>'token');
   reset role;
-  assert v_r ? 'token' and (v_painel->>'saldo')::numeric = 0 and (v_painel->>'pontos')::int = 0,
+  assert v_r ? 'token' and (v_painel->>'saldo')::numeric = 0 and (v_painel->>'vitorias')::int = 0,
     'FALHOU: pessoa mantida entra com a mesma senha e começa zerada';
   v_n := v_n + 5;
 

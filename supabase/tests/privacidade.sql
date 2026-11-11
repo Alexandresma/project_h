@@ -1,5 +1,6 @@
 -- =====================================================================
 -- Testes: privacidade do prêmio, permissões, senha, ranking e evento
+-- (atualizado na migração 7: ranking oculto até o admin exibir)
 -- =====================================================================
 -- Como rodar: cole este arquivo inteiro no SQL Editor do Supabase e clique
 -- em Run.
@@ -363,23 +364,21 @@ begin
      where a.v <> '0.00' and a.v not in (select v from meus) and position(a.v in v_txt) > 0;
     assert v_vaz is null, format('FALHOU: %s recebeu prêmio de outra pessoa: %s', v_p.nome, v_vaz);
 
-    -- (b) ranking sem prêmio e, com evento aberto, sem pontos
+    -- (b) ranking sem prêmio e, com evento aberto, sem pontos nem colocação (migração 7)
     assert v_rank::text !~ '"premio"', 'FALHOU: ranking contém prêmio (' || v_p.nome || ')';
-    assert v_rank::text !~ '"pontos"', 'FALHOU: ranking aberto contém pontos (' || v_p.nome || ')';
+    assert v_rank::text !~ '"(pontos|posicao|empate|no_desempate)"', 'FALHOU: ranking aberto contém pontos/colocação (' || v_p.nome || ')';
+    assert v_painel::text !~ '"(pontos|posicao)"', 'FALHOU: painel com ranking oculto contém pontos/colocação (' || v_p.nome || ')';
 
     -- (c) o painel traz o PRÓPRIO prêmio, com o valor certo
     select s.premio::text into v_esperado from public.fn_estatisticas() s where s.pessoa_id = v_p.id;
     assert v_painel->>'pessoa_id' = v_p.id::text and v_painel->>'premio' = v_esperado,
       format('FALHOU: painel de %s deveria ter prêmio %s, veio %s', v_p.nome, v_esperado, v_painel->>'premio');
 
-    -- (d) em "meus jogos" só existe prêmio dentro de meu_resultado, e é o meu
+    -- (d) "meus jogos" só traz as regras: sem resultado, pontos nem prêmio (migração 7)
     select count(*) into v_cnt
       from jsonb_array_elements(v_jogos) e
-     where e ? 'premio'
-        or (e->'meu_resultado' <> 'null'::jsonb and (e->'meu_resultado'->>'premio')::numeric is distinct from
-              (select r.premio from public.resultado r
-                where r.jogo_id = (e->>'id')::uuid and r.pessoa_id = v_p.id));
-    assert v_cnt = 0, 'FALHOU: meus jogos com prêmio fora do lugar (' || v_p.nome || ')';
+     where e ? 'premio' or e ? 'pontos' or e ? 'meu_resultado' or e ? 'pontuado';
+    assert v_cnt = 0, 'FALHOU: meus jogos com resultado/pontos (' || v_p.nome || ')';
 
     -- (e) resultado final ainda não existe
     v_msg := null;
@@ -394,7 +393,7 @@ begin
     set local role anon;
     perform public.fn_sair(v_tok);
     reset role;
-    v_n := v_n + 6;
+    v_n := v_n + 7;
   end loop;
 
   -- prêmios conferidos um a um
@@ -406,64 +405,69 @@ begin
   v_r := public.fn_meu_painel(v_tok2);
   reset role;
   assert v_painel->>'premio' = '277.96', 'FALHOU: prêmio da Carla deveria ser 277.96';
-  assert (v_painel->>'pontos')::int = 18 and (v_painel->>'vitorias')::int = 1, 'FALHOU: pontos/vitórias da Carla';
+  assert not v_painel ? 'pontos' and (v_painel->>'vitorias')::int = 1, 'FALHOU: vitórias da Carla (sem pontos com ranking oculto)';
   assert jsonb_array_length(v_painel->'resultados') = 2, 'FALHOU: Carla tem 2 resultados';
-  assert v_r->>'premio' = '0.00' and v_r->'posicao' = 'null'::jsonb, 'FALHOU: Fabio não pontuou: R$ 0 e sem posição';
+  assert v_r->>'premio' = '0.00' and not v_r ? 'posicao', 'FALHOU: Fabio não pontuou: R$ 0 e sem posição';
   assert (v_r->>'qtd_jogos')::int = 3, 'FALHOU: Fabio participa de 3 jogos (J1, J2 pelo grupo, J4)';
   v_n := v_n + 5;
 
   -- -------------------------------------------------------------------
-  -- 8. Ranking com evento ABERTO: vitórias → pontos; iguais = empate
+  -- 8. Ranking com evento ABERTO
+  --    participante: só vitórias, ordem vitórias → nome (migração 7)
+  --    admin: vitórias → pontos; iguais = empate (dense_rank)
   -- -------------------------------------------------------------------
   set local role anon;
   v_rank := public.fn_ranking(v_tok);
   reset role;
   select array_agg(l->>'nome' order by o) into v_ordem
     from jsonb_array_elements(v_rank->'linhas') with ordinality t(l, o);
-  assert v_ordem = array['Carla','Diego','Ana','Bruno','Elisa','Fabio'],
-    'FALHOU: ordem do ranking aberto: ' || array_to_string(v_ordem, ', ');
-  select array_agg(coalesce(l->>'posicao', '-') order by o) into v_ordem
-    from jsonb_array_elements(v_rank->'linhas') with ordinality t(l, o);
-  -- Ana e Bruno: mesmas vitórias e pontos → dividem o 3º; Elisa fica em 4º (1º, 2º, 3º, 3º, 4º)
-  assert v_ordem = array['1','2','3','3','4','-'], 'FALHOU: posições do ranking aberto: ' || array_to_string(v_ordem, ', ');
-  assert (select bool_and((l->>'empate')::boolean and not (l->>'no_desempate')::boolean)
-            from jsonb_array_elements(v_rank->'linhas') l where l->>'nome' in ('Ana','Bruno')),
-    'FALHOU: Ana e Bruno deveriam estar empatados';
-  -- Carla e Diego: mesma vitória, separados pelos pontos → "no desempate"
-  assert (select bool_and((l->>'no_desempate')::boolean and not (l->>'empate')::boolean)
-            from jsonb_array_elements(v_rank->'linhas') l where l->>'nome' in ('Carla','Diego')),
-    'FALHOU: Carla e Diego deveriam estar "no desempate"';
-  -- Elisa: única com 0 vitórias entre quem pontuou → sem etiqueta
-  assert (select not (l->>'empate')::boolean and not (l->>'no_desempate')::boolean
-            from jsonb_array_elements(v_rank->'linhas') l where l->>'nome' = 'Elisa'),
-    'FALHOU: Elisa não deveria ter etiqueta';
-  assert (select not (l->>'empate')::boolean and not (l->>'no_desempate')::boolean and not (l->>'pontuou')::boolean
-            from jsonb_array_elements(v_rank->'linhas') l where l->>'nome' = 'Fabio'),
-    'FALHOU: Fabio não pontuou: sem etiquetas';
+  assert v_ordem = array['Ana','Bruno','Carla','Diego','Elisa','Fabio'],
+    'FALHOU: lista de vitórias (vitórias, depois nome): ' || array_to_string(v_ordem, ', ');
+  assert not exists (select 1 from jsonb_array_elements(v_rank->'linhas') l
+                      where (select string_agg(k, ',' order by k) from jsonb_object_keys(l) k) <> 'eu,grupo,nome,pessoa_id,vitorias'),
+    'FALHOU: lista de vitórias só com nome, grupo e vitórias';
   assert (select count(*) from jsonb_array_elements(v_rank->'linhas') l where (l->>'eu')::boolean) = 1
      and (select l->>'nome' from jsonb_array_elements(v_rank->'linhas') l where (l->>'eu')::boolean) = 'Carla',
     'FALHOU: marcação "eu" no ranking';
-  v_n := v_n + 7;
+  v_n := v_n + 3;
 
-  -- admin vê a mesma ordem, com prêmio
   perform set_config('request.jwt.claims', v_admin_claims, true);
   set local role authenticated;
   v_r := public.fn_admin_ranking();
   reset role;
-  assert (select array_agg(l->>'pessoa_id' order by o) from jsonb_array_elements(v_r) with ordinality t(l, o))
-       = (select array_agg(l->>'pessoa_id' order by o) from jsonb_array_elements(v_rank->'linhas') with ordinality t(l, o)),
-    'FALHOU: admin deveria ver a mesma ordem que os participantes';
+  select array_agg(l->>'nome' order by o) into v_ordem
+    from jsonb_array_elements(v_r) with ordinality t(l, o);
+  assert v_ordem = array['Carla','Diego','Ana','Bruno','Elisa','Fabio'],
+    'FALHOU: ordem do ranking aberto (admin): ' || array_to_string(v_ordem, ', ');
+  select array_agg(coalesce(l->>'posicao', '-') order by o) into v_ordem
+    from jsonb_array_elements(v_r) with ordinality t(l, o);
+  -- Ana e Bruno: mesmas vitórias e pontos → dividem o 3º; Elisa fica em 4º (1º, 2º, 3º, 3º, 4º)
+  assert v_ordem = array['1','2','3','3','4','-'], 'FALHOU: posições do ranking aberto: ' || array_to_string(v_ordem, ', ');
+  assert (select bool_and((l->>'empate')::boolean and not (l->>'no_desempate')::boolean)
+            from jsonb_array_elements(v_r) l where l->>'nome' in ('Ana','Bruno')),
+    'FALHOU: Ana e Bruno deveriam estar empatados';
+  -- Carla e Diego: mesma vitória, separados pelos pontos → "no desempate"
+  assert (select bool_and((l->>'no_desempate')::boolean and not (l->>'empate')::boolean)
+            from jsonb_array_elements(v_r) l where l->>'nome' in ('Carla','Diego')),
+    'FALHOU: Carla e Diego deveriam estar "no desempate"';
+  -- Elisa: única com 0 vitórias entre quem pontuou → sem etiqueta
+  assert (select not (l->>'empate')::boolean and not (l->>'no_desempate')::boolean
+            from jsonb_array_elements(v_r) l where l->>'nome' = 'Elisa'),
+    'FALHOU: Elisa não deveria ter etiqueta';
+  assert (select not (l->>'empate')::boolean and not (l->>'no_desempate')::boolean and not (l->>'pontuou')::boolean
+            from jsonb_array_elements(v_r) l where l->>'nome' = 'Fabio'),
+    'FALHOU: Fabio não pontuou: sem etiquetas';
   assert (select l->>'premio' from jsonb_array_elements(v_r) l where l->>'nome' = 'Bruno') = '444.67',
     'FALHOU: admin deveria ver o prêmio de todos';
-  v_n := v_n + 2;
+  v_n := v_n + 7;
 
   -- o horário não desempata: mudar quem pontuou antes não muda nada
   update public.resultado set registrado_em = '2026-10-30 22:00+00' where jogo_id = j3;
-  set local role anon;
-  v_rank := public.fn_ranking(v_tok);
+  set local role authenticated;
+  v_r := public.fn_admin_ranking();
   reset role;
   select array_agg(coalesce(l->>'posicao', '-') || case when (l->>'empate')::boolean then 'E' else '' end order by o) into v_ordem
-    from jsonb_array_elements(v_rank->'linhas') with ordinality t(l, o);
+    from jsonb_array_elements(v_r) with ordinality t(l, o);
   assert v_ordem = array['1','2','3E','3E','4','-'], 'FALHOU: horário não pode desempatar: ' || array_to_string(v_ordem, ', ');
   update public.resultado set registrado_em = '2026-11-01 00:00+00' where jogo_id = j3;
   v_n := v_n + 1;
@@ -524,6 +528,29 @@ begin
     assert v_msg like 'O período de jogos está encerrado%', 'FALHOU: com evento encerrado deveria bloquear: ' || v_txt;
     v_n := v_n + 1;
   end loop;
+  perform set_config('request.jwt.claims', '{}', true);
+
+  -- encerrado, ranking ainda oculto: nada de pontos nem colocação (migração 7)
+  for v_p in select p.id, p.nome from public.pessoa p order by p.nome loop
+    set local role anon;
+    v_tok    := public.fn_entrar(v_p.id, v_senhas->>(v_p.id::text))->>'token';
+    v_txt    := public.fn_meu_painel(v_tok)::text || public.fn_meus_jogos(v_tok)::text
+             || public.fn_ranking(v_tok)::text;
+    v_final  := public.fn_resultado_final(v_tok);
+    perform public.fn_sair(v_tok);
+    reset role;
+    assert (v_txt || v_final::text) !~ '"(pontos|posicao|empate|no_desempate)"',
+      'FALHOU: ranking oculto com pontos/colocação (' || v_p.nome || ')';
+    assert not (v_final->>'visivel')::boolean and v_final->'grupos' = '[]'::jsonb,
+      'FALHOU: resultado final oculto sem placar de grupos (' || v_p.nome || ')';
+    v_n := v_n + 2;
+  end loop;
+
+  -- admin exibe o ranking
+  perform set_config('request.jwt.claims', v_admin_claims, true);
+  set local role authenticated;
+  perform public.fn_admin_exibir_ranking(true);
+  reset role;
   perform set_config('request.jwt.claims', '{}', true);
 
   -- participante: login funciona; nada de prêmio alheio em lugar nenhum

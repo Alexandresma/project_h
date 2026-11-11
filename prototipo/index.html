@@ -341,6 +341,13 @@ button.box{cursor:pointer}button.box:hover{border-color:var(--or)}button.box:act
 .wallet-4{grid-template-columns:repeat(2,1fr)}
 .recv{color:var(--gr)!important}
 
+.tiles.t2{grid-template-columns:repeat(2,1fr)}
+.rules{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+.rules small{color:var(--tx)!important;font-weight:700!important}
+
+.fld-hint{font-weight:600;font-size:.78rem;color:var(--mu)}
+.two{align-items:start}
+
 /* Modal & toast */
 .overlay{position:fixed;inset:0;z-index:50;background:rgba(5,3,9,.7);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;animation:fade .15s}
 .modal{background:var(--s1);border:1px solid var(--bd);width:100%;max-width:560px;max-height:90vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom));animation:up .2s ease-out}
@@ -396,12 +403,13 @@ function seed(){
   games.forEach(g=>{g.seriesId=g.seriesId||g.id;g.round=g.round||1});
   const contents=['Kit de chocolates','Vale-pizza','Caneca assombrada','','Pelúcia de morcego','','Jogo de cartas',''];
   const auction={items:contents.map((c,i)=>({id:'b'+(i+1),num:i+1,content:c,sold:false}))};
-  return {event:{name:'Gincana de Halloween',open:true,closedAt:null},groups,people,games,auction,transfers:[]};
+  return {event:{name:'Gincana de Halloween',open:true,closedAt:null,rankingVisible:false},groups,people,games,auction,transfers:[]};
 }
 function defPlaces(){return[{points:10,prize:20},{points:6,prize:10},{points:3,prize:5}]}
 function normalize(d){
   if(!d.auction||!Array.isArray(d.auction.items))d.auction={items:[]};
   if(!Array.isArray(d.transfers))d.transfers=[];
+  d.event.rankingVisible=!!d.event.rankingVisible;
   d.games.forEach(g=>{if(!g.seriesId)g.seriesId=g.id;if(!g.round)g.round=1});
   d.games.forEach(g=>{
     if(g.mode!=='grupo')g.mode='individual';
@@ -460,11 +468,13 @@ function walletOf(pid){
   const earned=round2(statsOf(pid).prize);
   const buys=S.auction.items.filter(i=>i.sold&&i.buyerId===pid).sort((a,b)=>a.soldAt-b.soldAt);
   const spent=round2(buys.reduce((a,i)=>a+i.price,0));
-  const out=S.transfers.filter(t=>t.from===pid),inn=S.transfers.filter(t=>t.to===pid);
-  const sent=round2(out.reduce((a,t)=>a+t.amount,0)),received=round2(inn.reduce((a,t)=>a+t.amount,0));
+  const sum=l=>round2(l.reduce((a,t)=>a+t.amount,0));
+  const out=S.transfers.filter(t=>t.from===pid),inn=S.transfers.filter(t=>t.to===pid&&t.from!=='admin'),adm=S.transfers.filter(t=>t.to===pid&&t.from==='admin');
+  const sent=sum(out),received=sum(inn),fromAdmin=sum(adm);
   const moves=[...buys.map(i=>({kind:'buy',at:i.soldAt,amount:-i.price,item:i})),
-    ...out.map(t=>({kind:'sent',at:t.at,amount:-t.amount,t})),...inn.map(t=>({kind:'recv',at:t.at,amount:t.amount,t}))].sort((a,b)=>a.at-b.at);
-  return{earned,spent,sent,received,balance:round2(earned+received-spent-sent),buys,moves};
+    ...out.map(t=>({kind:'sent',at:t.at,amount:-t.amount,t})),...inn.map(t=>({kind:'recv',at:t.at,amount:t.amount,t})),
+    ...adm.map(t=>({kind:'admin',at:t.at,amount:t.amount,t}))].sort((a,b)=>a.at-b.at);
+  return{earned,spent,sent,received,fromAdmin,balance:round2(earned+received+fromAdmin-spent-sent),buys,moves};
 }
 function BoxSVG(){
   return `<svg viewBox="0 0 120 112" aria-hidden="true">
@@ -485,6 +495,7 @@ function BoxSVG(){
 }
 function Wallet(w){
   const cells=[['Ganhei nos jogos','money',BRL(w.earned)]];
+  if(w.fromAdmin)cells.push(['Recebi do ADM','recv','+ '+BRL(w.fromAdmin)]);
   if(w.received)cells.push(['Recebi de doações','recv','+ '+BRL(w.received)]);
   if(w.sent)cells.push(['Doei','spent','− '+BRL(w.sent)]);
   cells.push(['Gastei no leilão','spent',w.spent?'− '+BRL(w.spent):BRL(0)]);
@@ -499,10 +510,11 @@ function MovesList(w){
     let t,sub;
     if(m.kind==='buy'){t='📦 '+boxLabel(m.item);sub=(m.item.content?esc(m.item.content)+' · ':'')+'arrematada às '+hhmm(m.at)}
     else if(m.kind==='sent'){const o=person(m.t.to);t='🤝 Doação para '+esc(o?o.name:'—');sub=(m.t.note?esc(m.t.note)+' · ':'')+hhmm(m.at)}
+    else if(m.kind==='admin'){t='🧙 Crédito do ADM';sub=(m.t.note?esc(m.t.note)+' · ':'')+'transferido pelo organizador às '+hhmm(m.at)}
     else{const o=person(m.t.from);t='🎁 Doação de '+esc(o?o.name:'—');sub=(m.t.note?esc(m.t.note)+' · ':'')+hhmm(m.at)}
     return `<li><span>${t}<small>${sub}</small></span><span class="mini-r"><b class="mval ${m.amount<0?'spent':'recv'}">${m.amount<0?'− ':'+ '}${BRL(Math.abs(m.amount))}</b></span></li>`}).join('')}</ul>`;
 }
-const WalletLine=w=>`Ganhou ${BRL(w.earned)}${w.received?` · recebeu ${BRL(w.received)}`:''}${w.sent?` · doou ${BRL(w.sent)}`:''} · gastou ${BRL(w.spent)}`;
+const WalletLine=w=>`Ganhou ${BRL(w.earned)}${w.fromAdmin?` · recebeu do ADM ${BRL(w.fromAdmin)}`:''}${w.received?` · recebeu ${BRL(w.received)}`:''}${w.sent?` · doou ${BRL(w.sent)}`:''} · gastou ${BRL(w.spent)}`;
 function placeText(g,place){return g.scoring==='vitoria'?'Vitória':medalOf(place)+' '+place+'º lugar'}
 function ModeBadges(g){
   return `<span class="badge mode">${g.mode==='grupo'?'👥 Por grupo':'👤 Individual'}</span><span class="badge">${g.scoring==='colocacao'?'🥇 1º/2º/3º':'🏆 Vencedor'}</span>`;
@@ -519,14 +531,16 @@ function winnersOf(g){
   return g.results.slice().sort((a,b)=>a.place-b.place).map(r=>{const p=person(r.pid);return p?{label:p.name,place:r.place,points:r.points}:null}).filter(Boolean);
 }
 const winIco=(g,place)=>g.scoring==='vitoria'?'🏆':medalOf(place);
-function WinnersChips(g){
+function WinnersChips(g,showPts=true){
   const w=winnersOf(g);
   if(!w.length)return '<small class="muted">Sem vencedores</small>';
-  return `<div class="chips">${w.map(x=>`<span class="chip win-chip">${winIco(g,x.place)} ${esc(x.label)} <b>+${x.points}${x.each?' cada':''}</b></span>`).join('')}</div>`;
+  return `<div class="chips">${w.map(x=>`<span class="chip win-chip">${winIco(g,x.place)} ${esc(x.label)}${showPts?` <b>+${x.points}${x.each?' cada':''}</b>`:''}</span>`).join('')}</div>`;
 }
 const WinnersText=g=>winnersOf(g).map(x=>winIco(g,x.place)+' '+esc(x.label)).join(', ');
 /* Regra do ranking: com o evento aberto vale vitórias; encerrado vale pontos */
 const rule=()=>S.event.open?'wins':'points';
+/* Colocações e pontuação só aparecem para os participantes com os jogos encerrados E o ranking liberado pelo ADM */
+const revealed=()=>!S.event.open&&S.event.rankingVisible;
 /* Critérios, em ordem:
    aberto    → 1) vitórias  2) pontos
    encerrado → 1) pontos    2) vitórias
@@ -659,8 +673,8 @@ function AdminPainel(){
   <section class="flag ${o?'on':'off'}">
     <div class="flag-main"><div class="flag-dot"></div><div>
       <div class="eyebrow">Período de jogos</div><h2>${o?'Jogos abertos e ativos':'Período de jogos encerrado'}</h2>
-      <p class="muted small">${o?'Participantes veem os próprios jogos, vitórias, pontuação, prêmio e o ranking por vitórias. Para encerrar e liberar o leilão, vá à aba Leilão.':'Todos veem o ranking geral, os jogos jogados e os vencedores com pontuação. O leilão está liberado.'}</p></div></div>
-    <button type="button" class="btn" data-action="admin-tab" data-tab="leilao">🎁 Ir para o Leilão</button>
+      <p class="muted small">${o?'Participantes veem as regras dos próprios jogos, as próprias vitórias e a quantidade de vitórias de cada pessoa — sem colocação nem pontuação. Para encerrar e liberar o leilão, vá à aba Leilão.':`Leilão liberado. Ranking para os participantes: <b>${revealed()?'visível':'oculto'}</b>.`}</p></div></div>
+    <div class="row gap" style="flex-wrap:wrap">${o?'':(revealed()?'<button type="button" class="btn" data-action="hide-ranking">Ocultar ranking</button>':'<button type="button" class="btn primary" data-action="ask-show-ranking">🏆 Exibir ranking</button>')}<button type="button" class="btn" data-action="admin-tab" data-tab="leilao">🎁 Ir para o Leilão</button></div>
   </section>
   <div class="tiles">${Tile(S.people.length,'Participantes')}${Tile(S.groups.length,'Grupos')}${Tile(scored+'/'+S.games.length,'Jogos pontuados')}${Tile(totalWins,'Vitórias registradas')}${Tile(BRL(totalPrize),'Prêmios (fictício)','money')}</div>
   <div class="grid2">
@@ -792,10 +806,18 @@ function AdminGrupos(){
       ${others.length?`<select class="add-sel" data-change="add-to-group" data-id="${g.id}" aria-label="Adicionar participante ao grupo"><option value="">+ Adicionar participante…</option>${others.map(p=>{const og=groupOf(p);return `<option value="${p.id}">${esc(p.name)}${og?` (sai de ${esc(og.name)})`:''}</option>`}).join('')}</select>`:''}
     </section>`}).join('')}</div>`:Empty('Nenhum grupo criado ainda.')}`;
 }
+function RankingVisibility(){
+  const o=S.event.open,v=revealed();
+  return `<section class="flag ${v?'on':'off'}"><div class="flag-main"><div class="flag-dot"></div><div>
+      <div class="eyebrow">Ranking para os participantes</div><h2>${v?'Ranking visível':'Ranking oculto'}</h2>
+      <p class="muted small">${v?'Os participantes veem colocações, pontuação, pódio e placar dos grupos.':o?'Durante os jogos, os participantes veem só a quantidade de vitórias de cada pessoa, sem colocação nem pontuação. O botão fica disponível depois de encerrar o período de jogos (aba Leilão).':'Os participantes ainda veem só a quantidade de vitórias. Quando quiser revelar o resultado final, toque em Exibir ranking.'}</p></div></div>
+    ${v?'<button type="button" class="btn" data-action="hide-ranking">Ocultar ranking</button>':`<button type="button" class="btn primary" data-action="ask-show-ranking" ${o?'disabled':''}>🏆 Exibir ranking</button>`}
+  </section>`;
+}
 function AdminRanking(){
   const m=view.rankMode;
-  return `<div class="seg" role="tablist">${[['pessoas','Pessoas'],['grupos','Grupos']].map(([k,l])=>`<button type="button" class="${m===k?'on':''}" data-action="rank-mode" data-mode="${k}">${l}</button>`).join('')}</div>
-  <section class="card"><p class="muted small" style="margin-bottom:12px">${m==='pessoas'?`Mesma ordem que os participantes veem (${S.event.open?'jogos abertos: por vitórias':'jogos encerrados: por pontos'}), com pontos e prêmio de todos. ${TIE_TEXT[rule()]}`:'Gincanas por grupo contam uma vez para o grupo; jogos individuais somam os resultados dos membros. Desempate: mais vitórias.'}</p>
+  return `${RankingVisibility()}<div class="seg" role="tablist">${[['pessoas','Pessoas'],['grupos','Grupos']].map(([k,l])=>`<button type="button" class="${m===k?'on':''}" data-action="rank-mode" data-mode="${k}">${l}</button>`).join('')}</div>
+  <section class="card"><p class="muted small" style="margin-bottom:12px">${m==='pessoas'?`Visão completa do administrador (${S.event.open?'jogos abertos: ordem por vitórias':'jogos encerrados: ordem por pontos'}), com colocação, pontos e prêmio de todos. ${TIE_TEXT[rule()]}`:'Gincanas por grupo contam uma vez para o grupo; jogos individuais somam os resultados dos membros. Desempate: mais vitórias.'}</p>
   ${m==='pessoas'?RankList(ranking(rule()),{money:true}):GroupRank({money:true})}</section>`;
 }
 
@@ -819,13 +841,28 @@ function AdminLeilao(){
   <section class="card"><div class="card-h"><h3>📦 Caixas</h3><span class="muted small">Toque numa caixa para ${o?'editar':'registrar o arremate'}</span></div>
     ${items.length?`<div class="boxes">${items.map(i=>{const b=i.sold?person(i.buyerId):null;return `<button type="button" class="box ${i.sold?'sold':''}" data-action="open-box" data-id="${i.id}" aria-label="${boxLabel(i)}${i.sold?' vendida':''}">${BoxSVG()}${i.sold?'<span class="stamp">VENDIDO</span>':''}<span class="box-num">${boxLabel(i)}</span><span class="box-sub">${i.sold?`${esc(b?b.name:'—')} · <span class="money">${BRL(i.price)}</span>`:(i.content?'🔒 '+esc(i.content):'Disponível')}</span></button>`}).join('')}</div>`:Empty('Nenhuma caixa cadastrada.')}
   </section>
+  ${AdminCredits()}
   ${Transfers()}
-  <section class="card"><div class="card-h"><h3>💰 Saldos dos participantes</h3><span class="muted small">Ganhos + doações recebidas − doações − gastos</span></div>
+  <section class="card"><div class="card-h"><h3>💰 Saldos dos participantes</h3><span class="muted small">Ganhos + créditos do ADM + doações recebidas − doações − gastos</span></div>
     ${wallets.length?`<div class="list">${wallets.map(w=>`<div class="list-row" style="cursor:default">${Avatar(w.p)}<span class="lr-main"><b>${esc(w.p.name)}</b><small>${WalletLine(w)}${w.buys.length?` (${w.buys.map(boxLabel).join(', ')})`:''}</small></span><b class="money ${w.balance<0?'neg':''}">${BRL(w.balance)}</b></div>`).join('')}</div>`:Empty('Nenhum participante.')}
   </section>`;
 }
+function AdminCredits(){
+  const ppl=S.people.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  const list=S.transfers.filter(t=>t.from==='admin').sort((a,b)=>b.at-a.at);
+  return `<section class="card"><div class="card-h"><h3>🧙 Crédito do ADM</h3><span class="muted small">Só dinheiro — a pontuação não muda</span></div>
+    <p class="muted small">Dê qualquer valor a um participante, sem tirar de ninguém. Para ele, aparece como <b>"Crédito do ADM"</b>.</p>
+    ${ppl.length?`<form data-form="admin-credit" class="stack" style="margin-top:12px">
+      <div class="two"><label class="fld">Para quem<select name="to" required><option value="">Escolha…</option>${ppl.map(p=>`<option value="${p.id}">${esc(p.name)} — saldo ${BRL(walletOf(p.id).balance)}</option>`).join('')}</select></label>
+        <label class="fld">Valor (R$)<input name="amount" type="number" min="0.01" step="0.01" required placeholder="0,00"></label></div>
+      <label class="fld">Motivo (opcional)<input name="note" maxlength="60" placeholder="Ex.: prêmio de melhor fantasia"></label>
+      <div class="row end"><button class="btn primary" type="submit">Creditar</button></div>
+    </form>`:Empty('Cadastre participantes na aba Pessoas.')}
+    ${list.length?`<h4>Créditos feitos (${list.length})</h4><div class="list">${list.map(t=>{const b=person(t.to);return `<div class="list-row" style="cursor:default"><span class="lr-main"><b>ADM → ${esc(b?b.name:'—')}</b><small>${t.note?esc(t.note)+' · ':''}${hhmm(t.at)}</small></span><b class="money">+ ${BRL(t.amount)}</b><button type="button" class="btn ghost sm danger-tx" data-action="ask-undo-transfer" data-id="${t.id}">Desfazer</button></div>`}).join('')}</div>`:''}
+  </section>`;
+}
 function Transfers(){
-  const list=S.transfers.slice().sort((a,b)=>b.at-a.at);
+  const list=S.transfers.filter(t=>t.from!=='admin').sort((a,b)=>b.at-a.at);
   return `<section class="card"><div class="card-h"><h3>🤝 Doações entre participantes</h3><span class="muted small">Feitas pelos próprios participantes</span></div>
     <p class="muted small">Cada participante escolhe, na aba Leilão dele, para quem doar e quanto. Só dinheiro: a pontuação não muda. Aqui você acompanha e pode desfazer uma doação feita por engano.</p>
     ${list.length?`<div class="list" style="margin-top:12px">${list.map(t=>{const a=person(t.from),b=person(t.to);return `<div class="list-row" style="cursor:default"><span class="lr-main"><b>${esc(a?a.name:'—')} → ${esc(b?b.name:'—')}</b><small>${t.note?esc(t.note)+' · ':''}${hhmm(t.at)}</small></span><b class="money">${BRL(t.amount)}</b><button type="button" class="btn ghost sm danger-tx" data-action="ask-undo-transfer" data-id="${t.id}">Desfazer</button></div>`}).join('')}</div>`:`<div style="margin-top:12px">${Empty('Nenhuma doação feita ainda.')}</div>`}
@@ -865,21 +902,22 @@ function User(){
               :[{id:'final',ico:'🏁',label:'Resultado'},{id:'todos',ico:'🎲',label:'Jogos'},{id:'leilao',ico:'🎁',label:'Leilão'},{id:'eu',ico:'🎃',label:'Meu painel'}];
   if(!tabs.some(t=>t.id===view.userTab))view.userTab=tabs[0].id;
   const map={eu:UserEu,jogos:UserJogos,ranking:UserRanking,final:UserFinal,todos:UserTodos,leilao:UserLeilao};
-  const banner=!o&&view.userTab!=='final'?'<div class="closed-banner">🏁 Período de jogos encerrado — veja o resultado final na aba Resultado.</div>':'';
+  const banner=!o&&view.userTab!=='final'?`<div class="closed-banner">🏁 Período de jogos encerrado — ${revealed()?'veja o resultado final na aba Resultado.':'o ranking final será revelado pelo organizador.'}</div>`:'';
   return Header('Participante · '+esc(p.name))+Nav(tabs,view.userTab,'user-tab')+`<main class="wrap main ${view.reveal?'':'hide-money'}">${banner}${map[view.userTab](p)}</main>`;
 }
 function UserEu(p){
   const s=statsOf(p.id),g=groupOf(p),o=S.event.open,w=walletOf(p.id);
-  const me=ranking(o?'wins':'points').find(r=>r.pid===p.id);
+  const rv=revealed(),me=rv?ranking('points').find(r=>r.pid===p.id):null;
   const wins=S.games.filter(x=>resultOf(x,p.id)).sort((a,b)=>resultOf(a,p.id).place-resultOf(b,p.id).place);
   return `<section class="card me-hero" style="--c:${g?g.color:'#6b5a85'}">${Avatar(p,'lg')}<div><div class="eyebrow">Olá,</div><h2>${esc(p.name)}</h2><span class="g-badge">${g?esc(g.icon+' Grupo '+g.name):'Sem grupo'}</span></div></section>
-  <div class="tiles t3">${Tile(s.points,'Pontuação')}${Tile(s.wins,s.wins===1?'Vitória':'Vitórias')}${Tile(me.scored?me.pos+'º'+(me.tied?' 🤝':''):'—',o?(me.tied?'No ranking (empate)':'No ranking'):(me.tied?'Posição final (empate)':'Posição final'))}</div>
+  ${rv?`<div class="tiles t3">${Tile(s.points,'Pontuação')}${Tile(s.wins,s.wins===1?'Vitória':'Vitórias')}${Tile(me.scored?me.pos+'º'+(me.tied?' 🤝':''):'—',me.tied?'Posição final (empate)':'Posição final')}</div>`
+      :`<div class="tiles t2">${Tile(s.wins,s.wins===1?'Vitória':'Vitórias')}${Tile(s.played,s.played===1?'Jogo':'Jogos')}</div>`}
   <section class="card private"><div class="card-h"><h3>🔒 Meu dinheiro</h3><span class="badge priv">Só você vê</span></div>
     ${Wallet(w)}
     <p class="muted small">Valor fictício ganho nas vitórias e colocações, que pode receber doações e é usado no leilão de caixas surpresa. Os outros participantes não veem.</p></section>
   ${o&&!w.moves.length?'':`<section class="card"><div class="card-h"><h3>🛍️ Como usei meu dinheiro</h3><span class="muted small">Gasto no leilão: <b class="mval spent">${BRL(w.spent)}</b></span></div>${MovesList(w)}</section>`}
   <section class="card"><div class="card-h"><h3>🏆 Minhas vitórias e colocações</h3></div>
-    ${wins.length?`<ul class="mini">${wins.map(x=>{const r=resultOf(x,p.id);return `<li><span>${winIco(x,r.place)} ${GameTitle(x)}<small>${placeText(x,r.place)}${x.mode==='grupo'?' · com o grupo':''}</small></span><span class="mini-r"><b>+${r.points} pts</b><small class="mval">${BRL(r.prize)}</small></span></li>`}).join('')}</ul>`:Empty('Nenhuma vitória ainda. Bora assombrar! 👻')}
+    ${wins.length?`<ul class="mini">${wins.map(x=>{const r=resultOf(x,p.id);return `<li><span>${winIco(x,r.place)} ${GameTitle(x)}<small>${placeText(x,r.place)}${x.mode==='grupo'?' · com o grupo':''}</small></span><span class="mini-r">${rv?`<b>+${r.points} pts</b>`:''}<small class="mval">${BRL(r.prize)}</small></span></li>`}).join('')}</ul>`:Empty('Nenhuma vitória ainda. Bora assombrar! 👻')}
   </section>`;
 }
 function DonateCard(p){
@@ -888,7 +926,7 @@ function DonateCard(p){
     ${!others.length?Empty('Não há outros participantes.'):w.balance<=0?Empty('Você não tem saldo para doar.'):`
     <form data-form="donate" class="stack">
       <div class="two"><label class="fld">Para quem<select name="to" required><option value="">Escolha…</option>${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select></label>
-        <label class="fld">Valor (R$) <span class="mval" style="font-weight:600">· até ${BRL(w.balance)}</span><input name="amount" type="number" min="0.01" step="0.01" required placeholder="0,00"></label></div>
+        <label class="fld">Valor (R$)<input name="amount" type="number" min="0.01" step="0.01" required placeholder="0,00"><span class="fld-hint">Você pode doar até <b class="mval">${BRL(w.balance)}</b></span></label></div>
       <label class="fld">Recado (opcional)<input name="note" maxlength="60" placeholder="Ex.: para você arrematar a caixa #05"></label>
       <div class="row end"><button class="btn primary" type="submit">Doar</button></div>
     </form>`}
@@ -903,18 +941,31 @@ function UserLeilao(p){
   </section>
   <section class="card"><div class="card-h"><h3>🛍️ Como usei meu dinheiro</h3><span class="muted small">Gasto no leilão: <b class="mval spent">${BRL(w.spent)}</b></span></div>${MovesList(w)}</section>`;
 }
+function RulesText(g){
+  return `<span class="rules"><small>${g.scoring==='colocacao'?'🥇 Vale 1º, 2º e 3º lugar':'🏆 Vale só a vitória (vencedor ou derrota)'}</small><small>${g.mode==='grupo'?'👥 Pontuação por grupo: todos do grupo recebem igual':'👤 Individual: cada pessoa pelo próprio resultado'}</small></span>`;
+}
 function UserJogos(p){
   const games=S.games.filter(g=>partsOf(g).includes(p.id));
   return `<section class="card"><div class="card-h"><h3>🎲 Jogos que participei <span class="muted small">(${games.length})</span></h3></div>
-    ${games.length?`<ul class="mini">${games.map(g=>{const r=resultOf(g,p.id);return `<li><span>${GameTitle(g)}<small>${g.type} · ${g.mode==='grupo'?'por grupo':partsOf(g).length+' participantes'}</small></span><span class="row gap">${r?`<b style="color:var(--gr)">+${r.points} pts</b>`:''}${ResultBadge(g,p.id)}</span></li>`}).join('')}</ul>`:Empty('Você ainda não foi incluído em nenhum jogo.')}
+    <p class="muted small" style="margin-bottom:12px">Regras de cada jogo de que você participa.</p>
+    ${games.length?`<ul class="mini">${games.map(g=>`<li><span>${GameTitle(g)}<small>${g.type}${g.desc?' · '+esc(g.desc):''}</small>${RulesText(g)}</span></li>`).join('')}</ul>`:Empty('Você ainda não foi incluído em nenhum jogo.')}
   </section>`;
 }
+/* Lista só com a quantidade de vitórias, sem colocação */
+function WinsList(me){
+  if(!S.people.length)return Empty('Nenhum participante ainda.');
+  const rows=S.people.map(p=>({p,wins:statsOf(p.id).wins})).sort((a,b)=>b.wins-a.wins||a.p.name.localeCompare(b.p.name,'pt-BR'));
+  return `<ol class="rank">${rows.map(r=>`<li class="rk ${r.p.id===me?'me':''}">${Avatar(r.p)}<span class="rk-name"><span>${esc(r.p.name)}${r.p.id===me?' <em>você</em>':''}</span><small>${GroupLabel(r.p)}</small></span><span class="rk-stats"><span class="cell"><b>${r.wins}</b><small>${r.wins===1?'vitória':'vitórias'}</small></span></span></li>`).join('')}</ol>`;
+}
+const WINS_TEXT='Aqui aparece só a quantidade de vitórias de cada pessoa (1º lugar ou vencedor). As colocações e a pontuação são reveladas pelo organizador depois que os jogos terminarem.';
 function UserRanking(p){
-  return `<section class="card"><div class="card-h"><h3>🏆 Ranking de vitórias</h3></div>
-    <p class="muted small" style="margin-bottom:12px">Enquanto os jogos estão abertos, o ranking mostra apenas as vitórias de cada pessoa.<br>${TIE_TEXT.wins}</p>
-    ${RankList(ranking('wins'),{by:'wins',me:p.id})}</section>`;
+  return `<section class="card"><div class="card-h"><h3>🏆 Vitórias</h3></div>
+    <p class="muted small" style="margin-bottom:12px">${WINS_TEXT}</p>${WinsList(p.id)}</section>`;
 }
 function UserFinal(p){
+  if(!revealed())return `<section class="card final-hero"><div class="eyebrow">Resultado final</div><h2 class="spooky">Fim dos jogos!</h2>
+    <p>O organizador vai revelar o ranking final em breve. 🎃</p></section>
+  <section class="card"><div class="card-h"><h3>🏆 Vitórias</h3></div><p class="muted small" style="margin-bottom:12px">${WINS_TEXT}</p>${WinsList(p.id)}</section>`;
   const rk=ranking('points'),me=rk.find(r=>r.pid===p.id);
   return `<section class="card final-hero"><div class="eyebrow">Resultado final</div><h2 class="spooky">Fim dos jogos!</h2>
     <p>Você ficou em <b>${me.pos}º lugar${me.tied?' (empatado)':''}</b> com <b>${me.points} pts</b> e ${me.wins} ${me.wins===1?'vitória':'vitórias'}.</p></section>
@@ -927,7 +978,7 @@ function UserTodos(){
   return `<section class="card"><div class="card-h"><h3>🎲 Jogos e gincanas jogados</h3></div>
     ${list.length?`<div class="games-all">${list.map(g=>`<div class="ga"><div class="ga-h"><b>${GameTitle(g)}</b><span class="badge">${g.type}</span></div>
       <div class="badges">${ModeBadges(g)}</div>
-      ${g.status==='pontuado'?WinnersChips(g):'<small class="muted">Não foi pontuado</small>'}
+      ${g.status==='pontuado'?WinnersChips(g,revealed()):'<small class="muted">Não foi pontuado</small>'}
       <small class="muted">${partsOf(g).length} participantes</small></div>`).join('')}</div>`:Empty('Nenhum jogo cadastrado.')}
   </section>`;
 }
@@ -962,7 +1013,7 @@ const actions={
     confirmBox('Encerrar o período de jogos?',`Os jogos deixam de aceitar cadastro e pontuação, o <b>leilão é liberado</b> e todos os participantes passam a ver o <b>ranking geral</b>, todos os jogos jogados e os vencedores com pontuação — sem os valores em dinheiro.${n?`<br><br>⚠️ Ainda há <b>${n} jogo(s)</b> sem resultado.`:''}`,'Encerrar período de jogos',()=>{S.event.open=false;S.event.closedAt=Date.now();toast('Período de jogos encerrado. Leilão liberado! 🎁')})},
   'ask-reopen-event':()=>{
     const sold=S.auction.items.filter(i=>i.sold),tot=round2(sold.reduce((a,i)=>a+i.price,0)),tr=S.transfers.length;
-    const reopen=()=>{S.event.open=true;S.event.closedAt=null;toast('Período de jogos reaberto.')};
+    const reopen=()=>{S.event.open=true;S.event.closedAt=null;S.event.rankingVisible=false;toast('Período de jogos reaberto.')};
     if(!sold.length&&!tr)return confirmBox('Reabrir o período de jogos?','Os jogos voltam a ficar abertos e ativos, o ranking final deixa de ser exibido aos participantes e o leilão fica bloqueado até você encerrar de novo.','Reabrir',reopen,false);
     confirmBox('⚠️ O leilão já começou',`Já existem ${sold.length?`<b>${sold.length} arremate(s)</b> (${BRL(tot)})`:''}${sold.length&&tr?' e ':''}${tr?`<b>${tr} transferência(s)</b>`:''}. Se reabrir o período de jogos:<br><br>
       • os arremates e transferências feitos <b>continuam valendo</b>;<br>
@@ -973,6 +1024,9 @@ const actions={
   'new-game':()=>{if(!S.event.open)return toast('Período de jogos encerrado.');openModal('Novo jogo ou gincana',GameForm())},
   'open-game':(el,id)=>{view.adminTab='jogos';view.gameId=id;render();top()},
   'close-game':()=>{view.gameId=null;render();top()},
+  'ask-show-ranking':()=>{if(S.event.open)return toast('Encerre o período de jogos antes.');
+    confirmBox('Exibir o ranking?','Todos os participantes passam a ver as <b>colocações</b>, a <b>pontuação</b>, o pódio e o placar dos grupos. O dinheiro de cada um continua privado.','Exibir ranking',()=>{S.event.rankingVisible=true;toast('Ranking liberado para os participantes 🏆')},false)},
+  'hide-ranking':()=>{S.event.rankingVisible=false;commit('Ranking oculto para os participantes.')},
   'new-round':()=>{const g=curGame();if(!g||!S.event.open)return;
     const n={id:uid(),name:g.name,type:g.type,mode:g.mode,scoring:g.scoring,points:g.points,prize:g.prize,places:g.places.map(x=>({...x})),desc:g.desc,
       seriesId:g.seriesId,round:Math.max(...seriesOf(g).map(x=>x.round))+1,participants:[],groups:g.mode==='grupo'?g.groups.slice():[],results:[],groupResults:[],status:'aberto'};
@@ -1012,8 +1066,8 @@ const actions={
   'open-box':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);if(i)openModal('📦 '+boxLabel(i),BoxModal(i))},
   'save-box-content':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);const f=el.closest('form');if(!i||!f)return;i.content=f.elements.content.value.trim();closeModal();commit('Conteúdo salvo.')},
   'ask-undo-transfer':(el,id)=>{const t=S.transfers.find(x=>x.id===id);if(!t)return;const a=person(t.from),b=person(t.to);
-    if(b&&walletOf(b.id).balance<t.amount)return toast(`${b.name} já usou parte desse valor. Desfaça antes o arremate que usou o dinheiro.`);
-    confirmBox('Desfazer a transferência?',`${BRL(t.amount)} voltam de ${esc(b?b.name:'—')} para ${esc(a?a.name:'—')}.`,'Desfazer',()=>{S.transfers=S.transfers.filter(x=>x.id!==id);toast('Transferência desfeita.')})},
+    if(b&&walletOf(b.id).balance<t.amount)return toast(`${b.name} já usou parte desse valor. Desfaça antes o arremate ou a doação que usou o dinheiro.`);
+    confirmBox(t.from==='admin'?'Desfazer o crédito do ADM?':'Desfazer a doação?',t.from==='admin'?`${BRL(t.amount)} serão retirados do saldo de ${esc(b?b.name:'—')}.`:`${BRL(t.amount)} voltam de ${esc(b?b.name:'—')} para ${esc(a?a.name:'—')}.`,'Desfazer',()=>{S.transfers=S.transfers.filter(x=>x.id!==id);toast('Transferência desfeita.')})},
   'ask-undo-sale':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);if(!i)return;const b=person(i.buyerId);
     confirmBox('Desfazer a venda?',`${boxLabel(i)} volta a ficar disponível e ${BRL(i.price)} voltam para o saldo de ${esc(b?b.name:'—')}.`,'Desfazer venda',()=>{unsell(i);toast('Venda desfeita. Valor devolvido ao saldo.')})},
   'ask-delete-box':(el,id)=>{const i=S.auction.items.find(x=>x.id===id);if(!i)return;confirmBox('Excluir caixa?',`${boxLabel(i)} será removida do leilão.`,'Excluir',()=>{S.auction.items=S.auction.items.filter(x=>x.id!==id);toast('Caixa excluída.')})},
@@ -1032,12 +1086,18 @@ const actions={
 };
 function unsell(i){i.sold=false;delete i.buyerId;delete i.price;delete i.soldAt}
 const forms={
+  'admin-credit':fd=>{if(sess.role!=='admin')return;
+    const b=person(fd.to),amount=round2(fd.amount);
+    if(!b)return toast('Escolha para quem creditar.');
+    if(!(amount>0))return toast('Informe o valor.');
+    S.transfers.push({id:uid(),from:'admin',to:b.id,amount,note:(fd.note||'').trim(),at:Date.now()});
+    commit(`${BRL(amount)} creditados para ${b.name} pelo ADM 🧙`)},
   'new-event':fd=>{if(fd.ok!=='on')return toast('Confirme que os dados atuais serão apagados.');
     const name=(fd.name||'').trim();if(!name)return toast('Informe o nome do novo evento.');
     const keepP=fd.keepPeople==='on',keepG=fd.keepGroups==='on';
     const groups=keepG?S.groups:[];
     const people=keepP?S.people.map(p=>({...p,groupId:keepG?p.groupId:null})):[];
-    S={event:{name,open:true,closedAt:null},groups,people,games:[],auction:{items:[]},transfers:[]};
+    S={event:{name,open:true,closedAt:null,rankingVisible:false},groups,people,games:[],auction:{items:[]},transfers:[]};
     view={...view,gameId:null,adminTab:'painel'};closeModal();
     commit(`Novo evento criado${keepP?` com ${people.length} pessoa(s)`:''}${keepG?` e ${groups.length} grupo(s)`:''}.`);top()},
   'donate':fd=>{if(sess.role!=='user')return;if(S.event.open)return toast('As doações abrem junto com o leilão.');

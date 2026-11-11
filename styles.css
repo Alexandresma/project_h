@@ -351,3 +351,10 @@ button.box{cursor:pointer}button.box:hover{border-color:var(--or)}button.box:act
 .hist .list-row.cur{border-color:var(--or);background:rgba(255,122,26,.08)}
 .wallet-4{grid-template-columns:repeat(2,1fr)}
 .recv{color:var(--gr)!important}
+
+/* Migração 7: ranking oculto, regras dos jogos, dica do valor da doação */
+.tiles.t2{grid-template-columns:repeat(2,1fr)}
+.rules{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+.rules small{color:var(--tx)!important;font-weight:700!important}
+.fld-hint{font-weight:600;font-size:.78rem;color:var(--mu)}
+.two{align-items:start}

@@ -67,12 +67,17 @@ for (const [fn, args] of [['fn_admin_ranking'], ['fn_admin_placar_grupos'], ['fn
     ['fn_admin_desfazer_venda', { p_caixa_id: NADA }], ['fn_doacoes_json', { p_pessoa_id: NADA }],
     ['fn_partida', { p_jogo_id: NADA }], ['fn_admin_nova_partida', { p_jogo_id: NADA }],
     ['fn_admin_desfazer_doacao', { p_id: NADA }],
-    ['fn_admin_novo_evento', { p_nome: 'x', p_manter_pessoas: true, p_manter_grupos: true }]]) {
+    ['fn_admin_novo_evento', { p_nome: 'x', p_manter_pessoas: true, p_manter_grupos: true }],
+    ['fn_admin_exibir_ranking', { p_visivel: true }], ['fn_admin_creditar', { p_para: NADA, p_valor: 1, p_motivo: '' }],
+    ['fn_ranking_liberado'], ['fn_lista_vitorias', { p_eu: NADA }]]) {
   const r = await rpc(fn, args);
   check(r.status >= 400 && /42501|permission denied/i.test(r.corpo), `${fn}: negado (HTTP ${r.status})`, r.json);
 }
 
-console.log('\n3. Lista do login');
+console.log('\n3. Lista do login e login do admin só com senha');
+const emailAdm = await rpc('fn_email_admin');
+check(emailAdm.status === 200 && typeof emailAdm.json === 'string' && emailAdm.json.includes('@'),
+  'fn_email_admin devolve o e-mail da conta do admin (a senha continua com o Supabase Auth)');
 const lista = await rpc('fn_lista_login');
 check(lista.status === 200, 'fn_lista_login responde', lista.json);
 const pessoas = lista.json?.pessoas || [];
@@ -98,9 +103,18 @@ check(caminhosPremio(painel.json).every(c => c === '$.premio' || c === '$.result
   'painel: prêmio só no total e nos meus resultados', caminhosPremio(painel.json));
 const somaResultados = (painel.json?.resultados || []).reduce((s, r) => s + Number(r.premio), 0);
 check(Math.abs(somaResultados - Number(painel.json?.premio)) < 0.005, 'painel: total = soma dos meus resultados');
-check(jogos.status === 200 && caminhosPremio(jogos.json).every(c => c === '$[].meu_resultado.premio'),
-  'meus jogos: prêmio só em meu_resultado', caminhosPremio(jogos.json));
+check(jogos.status === 200 && Array.isArray(jogos.json)
+    && jogos.json.every(j => Object.keys(j).sort().join() === 'descricao,formato,id,modo,nome,partida,tipo'),
+  'meus jogos: só as regras (sem resultado, pontos nem prêmio)', (jogos.json || [])[0]);
 check(ranking.status === 200 && caminhosPremio(ranking.json).length === 0, 'ranking: nenhum prêmio', caminhosPremio(ranking.json));
+const visivel = !!painel.json?.evento?.ranking_visivel;
+if (!visivel) {
+  check(!/"(pontos|posicao|empate|no_desempate)"/.test(painel.corpo + ranking.corpo), 'ranking oculto: painel e ranking sem pontos nem colocação');
+  const linhas = ranking.json?.linhas || [];
+  const ordenada = linhas.every((l, i) => i === 0 || linhas[i - 1].vitorias > l.vitorias
+    || (linhas[i - 1].vitorias === l.vitorias && linhas[i - 1].nome.localeCompare(l.nome, 'pt-BR', { sensitivity: 'base' }) <= 0));
+  check(ordenada, 'ranking oculto: ordem por vitórias e depois nome (não vaza os pontos)');
+}
 if (ranking.json?.aberto) {
   check(!/"pontos"/.test(ranking.corpo), 'ranking com evento aberto: sem pontos');
   const final = await rpc('fn_resultado_final', { p_token: token });
@@ -108,16 +122,20 @@ if (ranking.json?.aberto) {
 } else {
   const final = await rpc('fn_resultado_final', { p_token: token });
   check(final.status === 200 && caminhosPremio(final.json).length === 0, 'resultado final: nenhum prêmio', caminhosPremio(final.json));
+  if (!visivel) check(!/"(pontos|posicao)"/.test(final.corpo) && (final.json?.grupos || []).length === 0,
+    'resultado final oculto: sem pontos, colocação nem placar de grupos');
 }
 
-console.log('\n6. Leilão e doações: só o meu dinheiro e as minhas caixas');
+console.log('\n6. Leilão, doações e crédito do ADM: só o meu dinheiro e as minhas caixas');
 const p = painel.json || {};
 check(Math.abs(Number(p.ganho) - Number(p.premio)) < 0.005
-    && Math.abs(Number(p.saldo) - (Number(p.ganho) + Number(p.recebido) - Number(p.doado) - Number(p.gasto))) < 0.005,
-  'painel: saldo = ganho + recebido − doado − gasto', { ganho: p.ganho, recebido: p.recebido, doado: p.doado, gasto: p.gasto, saldo: p.saldo });
+    && Math.abs(Number(p.saldo) - (Number(p.ganho) + Number(p.credito) + Number(p.recebido) - Number(p.doado) - Number(p.gasto))) < 0.005,
+  'painel: saldo = ganho + crédito do ADM + recebido − doado − gasto', { ganho: p.ganho, credito: p.credito, recebido: p.recebido, doado: p.doado, gasto: p.gasto, saldo: p.saldo });
 const somaDoacoes = tipo => (p.doacoes || []).filter(x => x.tipo === tipo).reduce((s, x) => s + Number(x.valor), 0);
-check(Math.abs(somaDoacoes('recebida') - Number(p.recebido)) < 0.005 && Math.abs(somaDoacoes('feita') - Number(p.doado)) < 0.005,
-  'painel: recebido/doado = soma do meu extrato de doações');
+check(Math.abs(somaDoacoes('recebida') - Number(p.recebido)) < 0.005 && Math.abs(somaDoacoes('feita') - Number(p.doado)) < 0.005
+    && Math.abs(somaDoacoes('credito') - Number(p.credito)) < 0.005,
+  'painel: recebido/doado/crédito do ADM = soma do meu extrato');
+check((p.doacoes || []).filter(x => x.tipo === 'credito').every(x => x.nome === null), 'crédito do ADM aparece sem nome de participante');
 const gastoArremates = (p.arremates || []).reduce((s, a) => s + Number(a.valor), 0);
 check(Math.abs(gastoArremates - Number(p.gasto)) < 0.005, 'painel: gasto = soma dos meus arremates');
 const leilao = await rpc('fn_leilao', { p_token: token });
