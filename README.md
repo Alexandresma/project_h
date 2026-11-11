@@ -12,7 +12,7 @@ App web (celular primeiro) para organizar a gincana. Página estática — HTML,
 
 ## Rodar
 
-1. Banco pronto e testado: siga [supabase/README.md](supabase/README.md) (migrações 1 a 5).
+1. Banco pronto e testado: siga [supabase/README.md](supabase/README.md) (migrações 1 a 6).
 2. Em `config.js`, cole a **Project URL** e a chave **publishable** (ou anon) de *Project Settings → API Keys*. Nunca a secret/service_role — o app se recusa a abrir com ela.
 3. Sirva a pasta e abra no navegador:
 
@@ -41,5 +41,8 @@ Para atualizar o site depois: `git add -A`, `git commit -m "..."`, `git push`.
 ## Como entrar
 
 - **Administrador**: e-mail e senha do usuário criado no Supabase Auth e marcado na tabela `admin`.
-- **Leilão de caixas surpresa**: o admin cadastra as caixas na aba *Leilão* (dá para fazer antes) e, depois de encerrar o evento, registra cada arremate. Saldo = ganho nos jogos − gasto no leilão; o banco recusa valor acima do saldo.
+- **Período de jogos e leilão**: o admin encerra/reabre o período de jogos no topo da aba *Leilão*. Cadastra as caixas ali (dá para fazer antes) e, com o período encerrado, registra cada arremate. Saldo = ganho nos jogos + doações recebidas − doações feitas − gasto no leilão; o banco recusa valor acima do saldo.
+- **Doações**: com o período encerrado, o participante doa parte do saldo a outro na aba *Leilão* dele (só dinheiro; pontos não mudam). O admin acompanha e pode desfazer na aba *Leilão*.
+- **Partidas**: no jogo, "↻ Nova partida" cria uma cópia zerada; as anteriores ficam no histórico e cada uma conta no ranking.
+- **Novo evento**: no *Painel*, "✨ Novo evento" apaga jogos, resultados, caixas e doações e começa outro evento (pode manter pessoas e grupos). Não dá para desfazer.
 - **Participante**: toca no próprio nome e digita a senha (4 a 6 dígitos) que o administrador definiu em *Pessoas → toque no nome → Senha de acesso*. Fica conectado até tocar em "Sair".

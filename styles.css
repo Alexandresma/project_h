@@ -147,7 +147,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* Podium */
 .podium{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:end;gap:8px;padding-top:6px}
 .pd{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;min-width:0}
-.pd b{font-weight:900;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd b{font-weight:900;max-width:100%;overflow-wrap:anywhere;line-height:1.2}
+.pd-avs{display:flex;justify-content:center}.pd-avs .av+.av{margin-left:-16px}
 .pd small{color:var(--mu);font-weight:700}
 .pd-base{width:100%;border-radius:12px 12px 4px 4px;display:grid;place-items:center;font-size:1.6rem;margin-top:4px;
   background:linear-gradient(180deg,var(--s3),var(--s2));border:1px solid var(--bd)}
@@ -344,3 +345,9 @@ button.box{cursor:pointer}button.box:hover{border-color:var(--or)}button.box:act
 .spent{color:var(--rd)!important}
 .neg{color:var(--rd)!important}
 .sale-preview{background:var(--s2);border-radius:12px;padding:10px 12px;font-weight:700;font-size:.9rem;line-height:1.5}
+
+/* Partidas e doações */
+.round{color:var(--or2);font-weight:800;font-size:.85em;white-space:nowrap}
+.hist .list-row.cur{border-color:var(--or);background:rgba(255,122,26,.08)}
+.wallet-4{grid-template-columns:repeat(2,1fr)}
+.recv{color:var(--gr)!important}

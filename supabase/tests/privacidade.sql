@@ -51,6 +51,7 @@ begin
   -- 0. Banco zerado (desfeito no fim) + um admin de teste
   -- -------------------------------------------------------------------
   update public.evento set aberto = true, encerrado_em = null where id = 1;
+  delete from public.transferencia;                                            -- migração 6
   update public.caixa set pessoa_id = null, valor = null, vendido_em = null;   -- migração 5
   delete from public.caixa;
   delete from public.resultado;
@@ -113,7 +114,7 @@ begin
   reset role;
   perform set_config('request.jwt.claims', '{}', true);
 
-  -- Horários fixos (critério 3 do desempate)
+  -- Horários fixos (só histórico: não entram no desempate)
   update public.resultado set registrado_em = '2026-10-31 22:00+00' where jogo_id = j1;
   update public.resultado set registrado_em = '2026-10-31 23:00+00' where jogo_id = j2;
   update public.resultado set registrado_em = '2026-11-01 00:00+00' where jogo_id = j3;
@@ -145,7 +146,8 @@ begin
   -- 4. anon (navegador do participante) não lê nenhuma tabela
   -- -------------------------------------------------------------------
   foreach v_tab in array array['evento','admin','grupo','pessoa','sessao','jogo',
-                               'jogo_grupo','participacao','resultado','caixa'] loop
+                               'jogo_grupo','participacao','resultado','caixa',
+                               'transferencia'] loop
     v_estado := null;
     begin
       set local role anon;
@@ -411,7 +413,7 @@ begin
   v_n := v_n + 5;
 
   -- -------------------------------------------------------------------
-  -- 8. Ranking com evento ABERTO: vitórias → pontos → quem chegou antes
+  -- 8. Ranking com evento ABERTO: vitórias → pontos; iguais = empate
   -- -------------------------------------------------------------------
   set local role anon;
   v_rank := public.fn_ranking(v_tok);
@@ -422,18 +424,26 @@ begin
     'FALHOU: ordem do ranking aberto: ' || array_to_string(v_ordem, ', ');
   select array_agg(coalesce(l->>'posicao', '-') order by o) into v_ordem
     from jsonb_array_elements(v_rank->'linhas') with ordinality t(l, o);
-  assert v_ordem = array['1','2','3','4','5','-'], 'FALHOU: posições do ranking aberto: ' || array_to_string(v_ordem, ', ');
-  -- Ana e Bruno: mesmas vitórias e pontos; Ana chegou antes → "no desempate"
-  assert (select bool_and((l->>'no_desempate')::boolean and not (l->>'empate')::boolean)
+  -- Ana e Bruno: mesmas vitórias e pontos → dividem o 3º; Elisa fica em 4º (1º, 2º, 3º, 3º, 4º)
+  assert v_ordem = array['1','2','3','3','4','-'], 'FALHOU: posições do ranking aberto: ' || array_to_string(v_ordem, ', ');
+  assert (select bool_and((l->>'empate')::boolean and not (l->>'no_desempate')::boolean)
             from jsonb_array_elements(v_rank->'linhas') l where l->>'nome' in ('Ana','Bruno')),
-    'FALHOU: Ana e Bruno deveriam estar "no desempate"';
+    'FALHOU: Ana e Bruno deveriam estar empatados';
+  -- Carla e Diego: mesma vitória, separados pelos pontos → "no desempate"
+  assert (select bool_and((l->>'no_desempate')::boolean and not (l->>'empate')::boolean)
+            from jsonb_array_elements(v_rank->'linhas') l where l->>'nome' in ('Carla','Diego')),
+    'FALHOU: Carla e Diego deveriam estar "no desempate"';
+  -- Elisa: única com 0 vitórias entre quem pontuou → sem etiqueta
+  assert (select not (l->>'empate')::boolean and not (l->>'no_desempate')::boolean
+            from jsonb_array_elements(v_rank->'linhas') l where l->>'nome' = 'Elisa'),
+    'FALHOU: Elisa não deveria ter etiqueta';
   assert (select not (l->>'empate')::boolean and not (l->>'no_desempate')::boolean and not (l->>'pontuou')::boolean
             from jsonb_array_elements(v_rank->'linhas') l where l->>'nome' = 'Fabio'),
     'FALHOU: Fabio não pontuou: sem etiquetas';
   assert (select count(*) from jsonb_array_elements(v_rank->'linhas') l where (l->>'eu')::boolean) = 1
      and (select l->>'nome' from jsonb_array_elements(v_rank->'linhas') l where (l->>'eu')::boolean) = 'Carla',
     'FALHOU: marcação "eu" no ranking';
-  v_n := v_n + 5;
+  v_n := v_n + 7;
 
   -- admin vê a mesma ordem, com prêmio
   perform set_config('request.jwt.claims', v_admin_claims, true);
@@ -447,14 +457,14 @@ begin
     'FALHOU: admin deveria ver o prêmio de todos';
   v_n := v_n + 2;
 
-  -- empate de verdade: tudo igual (inclusive o horário) → divide a posição
-  update public.resultado set registrado_em = '2026-10-31 22:00+00' where jogo_id = j3;
+  -- o horário não desempata: mudar quem pontuou antes não muda nada
+  update public.resultado set registrado_em = '2026-10-30 22:00+00' where jogo_id = j3;
   set local role anon;
   v_rank := public.fn_ranking(v_tok);
   reset role;
   select array_agg(coalesce(l->>'posicao', '-') || case when (l->>'empate')::boolean then 'E' else '' end order by o) into v_ordem
     from jsonb_array_elements(v_rank->'linhas') with ordinality t(l, o);
-  assert v_ordem = array['1','2','3E','3E','5','-'], 'FALHOU: empate total deveria dividir o 3º lugar: ' || array_to_string(v_ordem, ', ');
+  assert v_ordem = array['1','2','3E','3E','4','-'], 'FALHOU: horário não pode desempatar: ' || array_to_string(v_ordem, ', ');
   update public.resultado set registrado_em = '2026-11-01 00:00+00' where jogo_id = j3;
   v_n := v_n + 1;
 
@@ -511,7 +521,7 @@ begin
     exception when others then v_msg := sqlerrm;
     end;
     reset role;
-    assert v_msg like 'O evento está encerrado%', 'FALHOU: com evento encerrado deveria bloquear: ' || v_txt;
+    assert v_msg like 'O período de jogos está encerrado%', 'FALHOU: com evento encerrado deveria bloquear: ' || v_txt;
     v_n := v_n + 1;
   end loop;
   perform set_config('request.jwt.claims', '{}', true);
@@ -551,11 +561,12 @@ begin
     v_n := v_n + 4;
   end loop;
 
-  -- ranking encerrado: pontos → vitórias → quem chegou antes
+  -- ranking encerrado: pontos → vitórias; Ana e Bruno iguais nos dois → dividem o 4º
   select array_agg(format('%s:%s%s', l->>'nome', coalesce(l->>'posicao', '-'),
-                          case when (l->>'no_desempate')::boolean then 'D' else '' end) order by o) into v_ordem
+                          case when (l->>'empate')::boolean then 'E'
+                               when (l->>'no_desempate')::boolean then 'D' else '' end) order by o) into v_ordem
     from jsonb_array_elements(v_final->'ranking') with ordinality t(l, o);
-  assert v_ordem = array['Elisa:1','Carla:2','Diego:3','Ana:4D','Bruno:5D','Fabio:-'],
+  assert v_ordem = array['Elisa:1','Carla:2','Diego:3','Ana:4E','Bruno:4E','Fabio:-'],
     'FALHOU: ranking final: ' || array_to_string(v_ordem, ', ');
   select array_agg(format('%s:%s', l->>'nome', l->>'pontos') order by o) into v_ordem
     from jsonb_array_elements(v_final->'grupos') with ordinality t(l, o);

@@ -53,7 +53,7 @@ function caminhosPremio(v, caminho = '$', out = []) {
 }
 
 console.log('\n1. Tabelas não podem ser lidas com a chave pública');
-for (const t of ['evento', 'admin', 'grupo', 'pessoa', 'sessao', 'jogo', 'jogo_grupo', 'participacao', 'resultado', 'caixa']) {
+for (const t of ['evento', 'admin', 'grupo', 'pessoa', 'sessao', 'jogo', 'jogo_grupo', 'participacao', 'resultado', 'caixa', 'transferencia']) {
   const r = await fetch(`${URL_BASE}/rest/v1/${t}?select=*&limit=1`, { headers: cab });
   const corpo = await r.text();
   check(!r.ok && /42501|permission denied/i.test(corpo), `${t}: negado (HTTP ${r.status})`, corpo);
@@ -64,7 +64,10 @@ const NADA = '00000000-0000-4000-8000-000000000000';
 for (const [fn, args] of [['fn_admin_ranking'], ['fn_admin_placar_grupos'], ['fn_ranking_base'], ['fn_estatisticas'],
     ['fn_placar_grupos_base'], ['fn_saldos'], ['fn_admin_adicionar_caixas', { p_qtd: 1 }],
     ['fn_admin_arrematar', { p_caixa_id: NADA, p_pessoa_id: NADA, p_valor: 1 }],
-    ['fn_admin_desfazer_venda', { p_caixa_id: NADA }]]) {
+    ['fn_admin_desfazer_venda', { p_caixa_id: NADA }], ['fn_doacoes_json', { p_pessoa_id: NADA }],
+    ['fn_partida', { p_jogo_id: NADA }], ['fn_admin_nova_partida', { p_jogo_id: NADA }],
+    ['fn_admin_desfazer_doacao', { p_id: NADA }],
+    ['fn_admin_novo_evento', { p_nome: 'x', p_manter_pessoas: true, p_manter_grupos: true }]]) {
   const r = await rpc(fn, args);
   check(r.status >= 400 && /42501|permission denied/i.test(r.corpo), `${fn}: negado (HTTP ${r.status})`, r.json);
 }
@@ -107,10 +110,14 @@ if (ranking.json?.aberto) {
   check(final.status === 200 && caminhosPremio(final.json).length === 0, 'resultado final: nenhum prêmio', caminhosPremio(final.json));
 }
 
-console.log('\n6. Leilão: só o meu dinheiro e as minhas caixas');
+console.log('\n6. Leilão e doações: só o meu dinheiro e as minhas caixas');
 const p = painel.json || {};
-check(Math.abs(Number(p.ganho) - Number(p.premio)) < 0.005 && Math.abs(Number(p.saldo) - (Number(p.ganho) - Number(p.gasto))) < 0.005,
-  'painel: saldo = ganho − gasto', { ganho: p.ganho, gasto: p.gasto, saldo: p.saldo });
+check(Math.abs(Number(p.ganho) - Number(p.premio)) < 0.005
+    && Math.abs(Number(p.saldo) - (Number(p.ganho) + Number(p.recebido) - Number(p.doado) - Number(p.gasto))) < 0.005,
+  'painel: saldo = ganho + recebido − doado − gasto', { ganho: p.ganho, recebido: p.recebido, doado: p.doado, gasto: p.gasto, saldo: p.saldo });
+const somaDoacoes = tipo => (p.doacoes || []).filter(x => x.tipo === tipo).reduce((s, x) => s + Number(x.valor), 0);
+check(Math.abs(somaDoacoes('recebida') - Number(p.recebido)) < 0.005 && Math.abs(somaDoacoes('feita') - Number(p.doado)) < 0.005,
+  'painel: recebido/doado = soma do meu extrato de doações');
 const gastoArremates = (p.arremates || []).reduce((s, a) => s + Number(a.valor), 0);
 check(Math.abs(gastoArremates - Number(p.gasto)) < 0.005, 'painel: gasto = soma dos meus arremates');
 const leilao = await rpc('fn_leilao', { p_token: token });
@@ -122,6 +129,9 @@ if (ranking.json?.aberto) {
   check(caixas.filter(c => !c.minha).every(c => Object.keys(c).sort().join() === 'minha,numero,vendida'),
     'caixas dos outros: só número e vendida (sem comprador, preço nem conteúdo)', caixas.filter(c => !c.minha));
   check(caixas.filter(c => c.minha).length === (p.arremates || []).length, 'minhas caixas = meus arremates');
+  const outros = leilao.json?.pessoas || [];
+  check(outros.every(x => Object.keys(x).sort().join() === 'id,nome') && !outros.some(x => x.id === eu.id),
+    'lista para doar: só id e nome dos outros (sem saldo)', outros.slice(0, 3));
 }
 
 console.log('\n7. Sessão');

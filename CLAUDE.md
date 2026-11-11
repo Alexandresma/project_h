@@ -17,8 +17,8 @@ Aplicação web, responsiva para celular, para organizar uma gincana de Hallowee
 
 | Perfil | Pode |
 | --- | --- |
-| Administrador | Cadastrar evento, jogos, pessoas, grupos e senhas; registrar resultados; encerrar/reabrir o evento; ver tudo de todos, inclusive dinheiro |
-| Participante | Só consultar: meu painel (grupo, pontos, vitórias, posição, prêmio próprio), meus jogos, ranking |
+| Administrador | Cadastrar evento, jogos, pessoas, grupos e senhas; registrar resultados; encerrar/reabrir o período de jogos; leilão; criar novo evento; ver tudo de todos, inclusive dinheiro |
+| Participante | Consultar: meu painel (grupo, pontos, vitórias, posição, saldo próprio), meus jogos, ranking; no leilão, **doar dinheiro** a outro participante (única ação dele) |
 
 ## Pontuação
 
@@ -36,45 +36,66 @@ Cada jogo tem um formato = quem pontua × como registra:
 - Mudar o formato de um jogo com resultado apaga o resultado.
 - Cada resultado guarda o horário em que foi registrado (usado no desempate).
 
-## Ranking e desempate
+## Partidas (jogos repetidos)
 
-| Critério | Evento aberto | Evento encerrado |
+- Botão **"↻ Nova partida"** no jogo: cria cópia com mesmo nome, tipo, formato, pontos e prêmios, **zerada** (sem participantes, sem resultado) e ativa. Em gincana por grupo, mantém os grupos escolhidos.
+- Partidas do mesmo jogo compartilham um `serie_id` e têm `numero_partida` (1, 2, 3…). Exibição: "Quiz do Terror · Partida 2" (só quando a série tem mais de uma partida).
+- Lista de jogos mostra só a partida mais recente de cada série; as anteriores ficam no **histórico** do jogo (participantes e vencedores de cada uma).
+- Cada partida conta separadamente no ranking. Renomear uma partida renomeia todas da série.
+
+## Ranking e empates
+
+| Critério | Jogos abertos | Jogos encerrados |
 | --- | --- | --- |
 | 1º | mais vitórias | mais pontos |
 | 2º | mais pontos | mais vitórias |
-| 3º | quem chegou primeiro à pontuação atual | idem |
 
-- Só divide a posição quando todos os critérios são iguais; mostrar "empate" para os envolvidos.
-- Quem foi separado pelos critérios 2 ou 3 mostra a etiqueta "no desempate".
-- Quem não pontuou aparece sem posição.
-- Admin vê a mesma ordem que os participantes.
-- Durante o evento, o ranking do participante mostra só vitórias (sem pontos e sem dinheiro).
+- **Sem desempate por horário.** Iguais nos dois critérios = **mesma colocação** (etiqueta "empate"); a colocação seguinte é a próxima (1º, 2º, 2º, 3º — `DENSE_RANK`). No pódio, empatados dividem o degrau.
+- Quem empatou no 1º critério e foi separado pelo 2º mostra a etiqueta "no desempate".
+- Quem não pontuou aparece sem posição. Admin vê a mesma ordem que os participantes.
+- Durante os jogos, o ranking do participante mostra só vitórias (sem pontos e sem dinheiro).
+- Ranking de grupos: pontos, depois vitórias, mesma regra de empate.
 
-## Status do evento
+## Período de jogos
 
-- Aberto: admin cadastra e pontua; participante vê os próprios dados e o ranking por vitórias.
-- Encerrado: admin não cadastra nem pontua até reabrir; participante vê ranking geral com pontos, pódio, placar de grupos e todos os jogos com vencedores e pontuação — nunca o dinheiro dos outros.
+- Flag aberto/encerrado. Controle na **aba Leilão**: botões **"Encerrar período de jogos"** / **"Reabrir período de jogos"**. O Painel só mostra o status e um atalho para o Leilão.
+- Aberto: admin cadastra e pontua; leilão e transferências bloqueados; participante vê os próprios dados e o ranking por vitórias.
+- Encerrado: admin não cadastra nem pontua; leilão e transferências liberados; participante vê ranking geral com pontos, pódio, placar de grupos, todos os jogos com vencedores e a aba Leilão — nunca o dinheiro dos outros.
+- **Reabrir com leilão iniciado** (há arremates ou transferências): exigir confirmação explicando que arremates/transferências continuam valendo, novos ficam bloqueados até encerrar de novo e que alterar resultados muda saldos (pode ficar negativo). Para corrigir arremate, usar "Desfazer venda".
 
 ## Leilão de caixas surpresa
 
-Ao final dos jogos, o dinheiro fictício ganho vira saldo para um leilão de caixas surpresa. **Saldo = ganho nos jogos − gasto no leilão.**
+Ao final dos jogos, o dinheiro fictício vira saldo para um leilão de caixas surpresa.
+**Saldo = ganho nos jogos + doações recebidas − doações feitas − gasto no leilão.**
 
 - Admin cadastra caixas em lote, numeradas em sequência (#01, #02…), exibidas como caixa de papelão surrada com "?" (ver `BoxSVG()` no protótipo). Conteúdo opcional por caixa, visível só ao admin antes da venda.
 - Admin registra o arremate: escolhe quem arrematou e o valor; a tela mostra saldo antes/depois.
-- Arremate só é aceito com o **evento encerrado** e se o valor **≤ saldo** da pessoa. Ao salvar: caixa recebe selo **VENDIDO** e o valor sai do saldo.
-- Admin pode desfazer a venda (valor volta ao saldo) e excluir caixas não vendidas; vê ganho, gasto e saldo de todos.
-- Participante (evento encerrado) tem a aba **Leilão**: vê todas as caixas, quais estão vendidas e as suas ("É SUA!"); não vê comprador nem preço das caixas dos outros; descobre o conteúdo só das caixas que arrematou.
-- No painel do participante: **Meu dinheiro** (saldo, ganho, gasto) e **Como gastei** (cada caixa: conteúdo, horário, valor; total gasto). Mesma regra de privacidade do prêmio.
-- Implementação: o arremate é uma função do banco que, na mesma transação, confere evento encerrado + caixa disponível (com lock da linha) + saldo suficiente. Saldo é calculado (ganhos − arremates), nunca guardado em coluna. A função do participante só devolve o conteúdo das caixas que ele arrematou.
+- Arremate só com **período de jogos encerrado** e valor **≤ saldo**. Ao salvar: selo **VENDIDO** e o valor sai do saldo.
+- Admin pode desfazer a venda (valor volta ao saldo) e excluir caixas não vendidas; vê ganho, doações, gasto e saldo de todos.
+- Participante (jogos encerrados) tem a aba **Leilão**: vê todas as caixas, vendidas e as suas ("É SUA!"); não vê comprador nem preço das caixas dos outros; descobre o conteúdo só das que arrematou.
+
+## Doações entre participantes
+
+- **Quem doa é o próprio participante** (não o admin): na aba Leilão escolhe para quem, quanto e um recado opcional; confirma num modal. Só com período de jogos encerrado. **Só dinheiro**: pontos, vitórias e ranking não mudam.
+- Valor ≤ saldo de quem doa. O participante vê só os nomes dos outros, nunca o saldo deles.
+- O participante não desfaz a doação. O admin vê todas as doações e pode desfazer uma, desde que quem recebeu ainda tenha esse saldo.
+- Participante vê em **Meu dinheiro** (saldo; ganhei nos jogos; recebi; doei; gastei no leilão) e **Como usei meu dinheiro**: extrato com arremates e doações feitas/recebidas (nome da outra pessoa, recado, horário, valor) e total gasto no leilão. Mesma regra de privacidade do prêmio.
+- Implementação: `fn_doar(token, para, valor, recado)` identifica quem doa **pelo token de sessão**, nunca por parâmetro vindo do navegador. Arremate e doação conferem, na mesma transação, período encerrado + saldo suficiente (e caixa disponível, com lock da linha, no arremate). Saldo é calculado, nunca guardado em coluna. A função do participante só devolve o conteúdo das caixas que ele arrematou.
+
+## Novo evento
+
+- Botão **"✨ Novo evento"** no Painel (admin): apaga jogos, partidas, resultados, caixas, arremates e doações e cria um evento novo, aberto, com o nome informado.
+- Opções (marcadas por padrão): **manter as pessoas cadastradas** (nome e senha) e **manter os grupos** com seus membros. Sem grupos, as pessoas mantidas ficam sem grupo.
+- Exige marcar "Entendo que os dados do evento atual serão apagados". Não dá para desfazer.
 
 ## Stack e arquitetura
 
 - Banco: Supabase (PostgreSQL). Migrações versionadas em SQL (`supabase/migrations/`).
 - Front-end: página estática (HTML/CSS/JS, sem build obrigatório) usando `@supabase/supabase-js`; hospedagem gratuita (Netlify, Vercel ou GitHub Pages).
-- Tabelas: evento, grupo, pessoa (com hash da senha), jogo, jogo_grupo, participacao, resultado (colocação, pontos, prêmio, horário), caixa (número, conteúdo, arrematante, valor, horário da venda).
+- Tabelas: evento, grupo, pessoa (com hash da senha), jogo, jogo_grupo, participacao, resultado (colocação, pontos, prêmio, horário), caixa (número, conteúdo, arrematante, valor, horário da venda), transferencia (de, para, valor, motivo, horário). `jogo` tem `serie_id` e `numero_partida`.
 - **Participantes não têm conta no Supabase.** Uma função do banco confere participante + senha e devolve um token de sessão; as demais funções (ex.: `fn_meu_painel`, `fn_ranking`) exigem o token.
 - **Acesso do participante só por funções** (RPC, `security definer`), nunca leitura direta das tabelas. RLS ligado em todas as tabelas; a role `anon` só tem EXECUTE nas funções públicas.
-- Status do evento e privacidade do prêmio são aplicados dentro das funções.
+- Período de jogos e privacidade do dinheiro são aplicados dentro das funções.
 - Projetos Supabase novos exigem GRANT explícito para tabelas/funções expostas pela API.
 - Chave `service_role` nunca vai para o front-end nem para o repositório; usar só a chave pública (anon/publishable) no navegador.
 

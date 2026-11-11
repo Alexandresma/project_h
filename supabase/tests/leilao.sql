@@ -44,6 +44,7 @@ begin
   -- 0. Banco zerado (desfeito no fim) + admin de teste
   -- -------------------------------------------------------------------
   update public.evento set aberto = true, encerrado_em = null where id = 1;
+  delete from public.transferencia;                       -- migração 6
   update public.caixa set pessoa_id = null, valor = null, vendido_em = null;
   delete from public.caixa;
   delete from public.resultado;
@@ -133,7 +134,7 @@ begin
     perform public.fn_admin_arrematar(c1, ana, 10);
   exception when others then v_msg := sqlerrm;
   end;
-  assert v_msg like '%evento encerrado%', 'FALHOU: arremate com evento aberto deveria ser recusado: ' || coalesce(v_msg, 'passou');
+  assert v_msg like '%período de jogos encerrado%', 'FALHOU: arremate com evento aberto deveria ser recusado: ' || coalesce(v_msg, 'passou');
   v_n := v_n + 1;
 
   perform public.fn_admin_encerrar();
@@ -358,7 +359,7 @@ begin
   exception when others then v_msg := sqlerrm;
   end;
   reset role;
-  assert v_msg like 'O leilão aparece quando o evento for encerrado.%', 'FALHOU: leilão visível com evento aberto';
+  assert v_msg like 'O leilão aparece quando o período de jogos for encerrado.%', 'FALHOU: leilão visível com evento aberto';
   set local role anon;
   v_painel := public.fn_meu_painel(v_tok);
   reset role;
