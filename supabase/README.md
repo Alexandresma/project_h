@@ -13,6 +13,9 @@ Fase 1: só o banco. As telas serão ligadas depois que os testes abaixo passare
    5. `migrations/20261110000005_leilao.sql` (leilão de caixas surpresa)
    6. `migrations/20261111000006_partidas_doacoes.sql` (partidas, empates sem horário, doações e novo evento)
    7. `migrations/20261111000007_ranking_oculto_credito.sql` (ranking oculto até o admin exibir, "Meus jogos" só com regras, crédito do ADM e login do admin só com a senha)
+   8. `migrations/20261112000008_permissoes_funcoes.sql` (refaz o EXECUTE de todas as funções: `fn_admin_*` só para `authenticated`, funções do participante para `anon`, internas para ninguém; no fim confere tudo e dá erro se algo estiver fora da regra — inclusive se alguma `fn_admin_*` não começar checando o admin)
+   9. `migrations/20261112000009_doacoes_abertas.sql` (doações entre participantes liberadas também com os jogos abertos — apostas)
+   10. `migrations/20261112000010_politicas_rls.sql` (recria as políticas RLS exatamente como no projeto, todas com `fn_is_admin`, e remove as que não são do projeto; o resultado mostra as removidas)
 
    (Quem tiver a CLI pode usar `npx supabase link` + `npx supabase db push`.)
 
@@ -50,19 +53,19 @@ O que ele verifica:
 
 ### Teste do leilão (SQL)
 
-Depois da migração 7, cole `tests/leilao.sql` inteiro e rode. Passou → `ERROR: TESTES OK (leilão): 50 verificações passaram…` (também é erro de propósito, nada fica gravado).
+Depois da migração 10, cole `tests/leilao.sql` inteiro e rode. Passou → `ERROR: TESTES OK (leilão): 50 verificações passaram…` (também é erro de propósito, nada fica gravado).
 
 Verifica: caixas numeradas em sequência; admin não vende nem cria caixa por fora das funções; arremate recusado com evento aberto, acima do saldo, valor ≤ 0 ou com mais de 2 casas; caixa vendida não é vendida de novo nem excluída; desfazer devolve o saldo; saldo = ganho − gasto; `anon` não lê `caixa` nem executa as funções de admin; **para cada participante**, nenhum valor, saldo ou conteúdo de caixa de outra pessoa aparece no que as funções devolvem; o participante vê o conteúdo só das caixas dele; leilão some com o evento aberto; excluir uma pessoa devolve as caixas dela.
 
 ### Teste de doações, partidas e novo evento (SQL)
 
-Depois da migração 7, cole `tests/doacoes_partidas.sql` inteiro e rode. Passou → `ERROR: TESTES OK (doações e partidas): 69 verificações passaram…` (erro de propósito, nada fica gravado).
+Depois da migração 10, cole `tests/doacoes_partidas.sql` inteiro e rode. Passou → `ERROR: TESTES OK (doações e partidas): 72 verificações passaram…` (erro de propósito, nada fica gravado).
 
-Verifica: nova partida copia o jogo zerado (sem participantes nem resultado), mantém os grupos e numera em sequência; renomear renomeia a série; série só pela função; cada partida conta no ranking; o número da partida só aparece quando a série tem mais de uma; doação recusada com o período aberto, para si mesmo, acima do saldo, valor ≤ 0, com mais de 2 casas ou recado longo; quem doa é a pessoa do token; saldo = ganho + recebido − doado − gasto; doação não muda pontos; doação já gasta não pode ser desfeita; admin lê mas não grava doações direto; `anon` não lê `transferencia` nem executa funções internas/de admin; **para cada participante**, nenhum saldo, doação ou recado de outra pessoa aparece no que as funções devolvem e a lista para doar tem só id e nome; novo evento apaga jogos, resultados, caixas e doações, mantendo (ou não) pessoas com senha e grupos.
+Verifica: nova partida copia o jogo zerado (sem participantes nem resultado), mantém os grupos e numera em sequência; renomear renomeia a série; série só pela função; cada partida conta no ranking; o número da partida só aparece quando a série tem mais de uma; doação aceita com os jogos abertos (e depois de reabrir), com saldo conferido e visível para quem recebeu; recusada para si mesmo, acima do saldo, valor ≤ 0, com mais de 2 casas ou recado longo; quem doa é a pessoa do token; saldo = ganho + recebido − doado − gasto; doação não muda pontos; doação já gasta não pode ser desfeita; admin lê mas não grava doações direto; `anon` não lê `transferencia` nem executa funções internas/de admin; **para cada participante**, nenhum saldo, doação ou recado de outra pessoa aparece no que as funções devolvem e a lista para doar tem só id e nome; novo evento apaga jogos, resultados, caixas e doações, mantendo (ou não) pessoas com senha e grupos.
 
 ### Teste de ranking oculto e crédito do ADM (SQL)
 
-Depois da migração 7, cole `tests/ranking_credito.sql` inteiro e rode. Passou → `ERROR: TESTES OK (ranking oculto e crédito): 45 verificações passaram…` (erro de propósito, nada fica gravado).
+Depois da migração 10, cole `tests/ranking_credito.sql` inteiro e rode. Passou → `ERROR: TESTES OK (ranking oculto e crédito): 45 verificações passaram…` (erro de propósito, nada fica gravado).
 
 Verifica: `anon` e quem não é admin não executam `fn_admin_exibir_ranking` nem `fn_admin_creditar`; `fn_email_admin` devolve o e-mail da conta do admin; com o ranking oculto, a lista de vitórias não tem pontos nem colocação e a ordem não muda quando os pontos mudam; painel sem pontos/posição; "Meus jogos" só com as regras; "Exibir ranking" recusado com o período aberto (e, mesmo com a flag ligada, nada aparece com o período aberto); crédito do ADM recusado com valor ≤ 0, mais de 2 casas, acima de R$ 1.000.000 ou para pessoa inexistente; crédito gravado com origem admin e sem quem doa; crédito não muda pontos; saldo = ganho + crédito + recebido − doado − gasto; extrato mostra "crédito" sem nome; outro participante não vê o crédito; vencedores sem pontos enquanto oculto; crédito já usado não pode ser desfeito; depois de exibir: pontos, posição e pódio, sem dinheiro de ninguém; ocultar, reabrir e novo evento voltam a ocultar.
 
@@ -107,7 +110,7 @@ Depois apague a pessoa de teste: `delete from public.pessoa where nome = 'Teste 
 | | `fn_ranking(p_token)` | oculto: só nome, grupo e vitórias (ordem vitórias → nome); liberado: + posição e pontos |
 | | `fn_resultado_final(p_token)` | só encerrado: oculto → lista de vitórias e vencedores sem pontos; liberado → ranking, grupos, jogos e vencedores com pontos |
 | | `fn_leilao(p_token)` | só encerrado: caixas (número, vendida, minha); conteúdo/valor só das minhas; nomes dos outros (para doar) |
-| | `fn_doar(p_token, p_para, p_valor, p_recado)` | só encerrado e valor ≤ meu saldo; quem doa = pessoa do token |
+| | `fn_doar(p_token, p_para, p_valor, p_recado)` | jogos abertos ou encerrados; valor ≤ meu saldo; quem doa = pessoa do token |
 | Admin (Auth) | `fn_is_admin()` | sou o admin? |
 | | `fn_admin_definir_senha(p_pessoa_id, p_senha)` | 4 a 6 dígitos |
 | | `fn_admin_desbloquear(p_pessoa_id)` | — |

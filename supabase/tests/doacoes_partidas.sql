@@ -180,16 +180,40 @@ begin
   -- Ganhos: Ana 200 + 71.13 = 271.13 · Bruno 162.29 · Carla 90.31
 
   -- -------------------------------------------------------------------
-  -- 2. Doações com o período de jogos ABERTO: recusadas
+  -- 2. Doações com o período de jogos ABERTO: aceitas (apostas)
   -- -------------------------------------------------------------------
+  set local role anon;
+  v_r := public.fn_doar(v_tok, bruno, 5, 'APOSTA-A1');
+  reset role;
+  assert (v_r->>'saldo_antes')::numeric = 271.13 and (v_r->>'saldo_depois')::numeric = 266.13,
+    'FALHOU: doação com período aberto deveria passar (271.13 → 266.13): ' || v_r::text;
+  select format('%s/%s/%s', t.origem, t.valor, t.motivo) into v_txt
+    from public.transferencia t where t.de_pessoa_id = ana and t.para_pessoa_id = bruno;
+  assert v_txt = 'participante/5.00/APOSTA-A1', 'FALHOU: doação aberta gravada errado: ' || coalesce(v_txt, 'nada');
+  -- saldo continua conferido com os jogos abertos
   v_msg := null;
   begin
     set local role anon;
-    perform public.fn_doar(v_tok, bruno, 1, '');
+    perform public.fn_doar(v_tok, bruno, 266.14, '');
   exception when others then v_msg := sqlerrm;
   end;
   reset role;
-  assert v_msg = 'As doações abrem junto com o leilão.', 'FALHOU: doação com período aberto: ' || coalesce(v_msg, 'passou');
+  assert v_msg = 'Saldo insuficiente: você tem R$ 266,13.', 'FALHOU: saldo com período aberto: ' || coalesce(v_msg, 'passou');
+  -- quem recebeu vê com os jogos abertos
+  set local role anon;
+  v_painel := public.fn_meu_painel(v_tokb);
+  reset role;
+  assert (v_painel->>'recebido')::numeric = 5 and (v_painel->>'saldo')::numeric = 167.29,
+    'FALHOU: Bruno deveria ver a doação recebida com os jogos abertos (saldo 162.29 + 5)';
+  v_n := v_n + 3;
+
+  -- admin desfaz (Bruno ainda tem o valor): o resto do teste segue com os saldos de antes
+  perform set_config('request.jwt.claims', v_admin_claims, true);
+  set local role authenticated;
+  perform public.fn_admin_desfazer_doacao((select t.id from public.transferencia t where t.motivo = 'APOSTA-A1'));
+  reset role;
+  select count(*) into v_cnt from public.transferencia;
+  assert v_cnt = 0, 'FALHOU: desfazer doação feita com os jogos abertos';
   v_n := v_n + 1;
 
   perform set_config('request.jwt.claims', v_admin_claims, true);
@@ -454,16 +478,13 @@ begin
   set local role authenticated;
   perform public.fn_admin_reabrir();
   reset role;
-  v_msg := null;
-  begin
-    set local role anon;
-    perform public.fn_doar(v_tokb, carla, 1, '');
-  exception when others then v_msg := sqlerrm;
-  end;
-  reset role;
-  assert v_msg = 'As doações abrem junto com o leilão.', 'FALHOU: doação depois de reabrir';
   select count(*) into v_cnt from public.transferencia;
   assert v_cnt = 1, 'FALHOU: reabrir não apaga doações';
+  set local role anon;
+  v_r := public.fn_doar(v_tokb, carla, 1, '');
+  reset role;
+  select count(*) into v_cnt from public.transferencia;
+  assert v_cnt = 2 and (v_r->>'saldo_depois')::numeric = 202.46, 'FALHOU: doação depois de reabrir deveria passar';
   v_n := v_n + 2;
 
   -- -------------------------------------------------------------------

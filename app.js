@@ -89,8 +89,9 @@ async function rpcU(fn){
 }
 async function carregarUser(){
   const [painel,jogos,ranking]=await Promise.all([rpcU('fn_meu_painel'),rpcU('fn_meus_jogos'),rpcU('fn_ranking')]);
-  const [final,leilao]=painel.evento.aberto?[null,null]:await Promise.all([rpcU('fn_resultado_final'),rpcU('fn_leilao')]);
-  U={painel,jogos,ranking,final,leilao};
+  const [final,leilao,lista]=painel.evento.aberto?[null,null,await rpc('fn_lista_login')]:[...await Promise.all([rpcU('fn_resultado_final'),rpcU('fn_leilao')]),null];
+  const pessoas=leilao?leilao.pessoas:((lista&&lista.pessoas)||[]).filter(x=>x.id!==painel.pessoa_id).map(x=>({id:x.id,nome:x.nome}));
+  U={painel,jogos,ranking,final,leilao,pessoas};
 }
 /* Carteira do participante (só dele, vinda de fn_meu_painel) */
 function walletU(){
@@ -539,7 +540,7 @@ function AdminLeilao(){
   <section class="flag ${o?'on':'off'}">
     <div class="flag-main"><div class="flag-dot"></div><div>
       <div class="eyebrow">Período de jogos</div><h2>${o?'Jogos abertos e ativos':'Período de jogos encerrado'}</h2>
-      <p class="muted small">${o?'O leilão usa os prêmios do final dos jogos: arremates e doações só são liberados depois de encerrar o período de jogos. Já dá para cadastrar as caixas.':'Leilão liberado: registre arremates; os participantes já podem doar. Eles veem o resultado final e a aba Leilão.'}</p></div></div>
+      <p class="muted small">${o?'O leilão usa os prêmios do final dos jogos: arremates só são liberados depois de encerrar o período de jogos. Já dá para cadastrar as caixas. Doações entre participantes (apostas) já estão liberadas.':'Leilão liberado: registre arremates. Os participantes veem o resultado final e a aba Leilão.'}</p></div></div>
     ${o?'<button type="button" class="btn danger" data-action="ask-close-event">Encerrar período de jogos</button>':'<button type="button" class="btn" data-action="ask-reopen-event">Reabrir período de jogos</button>'}
   </section>
   <div class="tiles t3">${Tile(items.length,'Caixas')}${Tile(sold.length,'Vendidas')}${Tile(BRL(total),'Arrecadado','money')}</div>
@@ -575,7 +576,7 @@ function AdminCredits(){
 function Transfers(){
   const list=S.transfers.filter(t=>t.from!=='admin').sort((a,b)=>new Date(b.at)-new Date(a.at));
   return `<section class="card"><div class="card-h"><h3>🤝 Doações entre participantes</h3><span class="muted small">Feitas pelos próprios participantes</span></div>
-    <p class="muted small">Cada participante escolhe, na aba Leilão dele, para quem doar e quanto. Só dinheiro: a pontuação não muda. Aqui você acompanha e pode desfazer uma doação feita por engano.</p>
+    <p class="muted small">Cada participante escolhe para quem doar e quanto (no Meu painel com os jogos abertos — ex.: apostas —, na aba Leilão depois de encerrar). Só dinheiro: a pontuação não muda. Aqui você acompanha e pode desfazer uma doação feita por engano.</p>
     ${list.length?`<div class="list" style="margin-top:12px">${list.map(t=>{const a=person(t.from),b=person(t.to);return `<div class="list-row" style="cursor:default"><span class="lr-main"><b>${esc(a?a.name:'—')} → ${esc(b?b.name:'—')}</b><small>${t.note?esc(t.note)+' · ':''}${hora(t.at)}</small></span><b class="money">${BRL(t.amount)}</b><button type="button" class="btn ghost sm danger-tx" data-action="ask-undo-transfer" data-id="${t.id}">Desfazer</button></div>`}).join('')}</div>`:`<div style="margin-top:12px">${Empty('Nenhuma doação feita ainda.')}</div>`}
   </section>`;
 }
@@ -625,6 +626,7 @@ function UserEu(){
   <section class="card private"><div class="card-h"><h3>🔒 Meu dinheiro</h3><span class="badge priv">Só você vê</span></div>
     ${Wallet(w)}
     <p class="muted small">Valor fictício ganho nas vitórias e colocações, que pode receber doações e é usado no leilão de caixas surpresa. Os outros participantes não veem.</p></section>
+  ${o?DonateCard(w):''}
   ${o&&!w.moves.length?'':`<section class="card"><div class="card-h"><h3>🛍️ Como usei meu dinheiro</h3><span class="muted small">Gasto no leilão: <b class="mval spent">${BRL(w.spent)}</b></span></div>${MovesList(w)}</section>`}
   <section class="card"><div class="card-h"><h3>🏆 Minhas vitórias e colocações</h3></div>
     ${wins.length?`<ul class="mini">${wins.map(x=>`<li><span>${winIco(x.formato,x.colocacao)} ${TitleU(x.jogo,x.partida)}<small>${placeText(x.formato,x.colocacao)}${x.modo==='grupo'?' · com o grupo':''}</small></span><span class="mini-r">${rv&&x.pontos!=null?`<b>+${x.pontos} pts</b>`:''}<small class="mval">${BRL(x.premio)}</small></span></li>`).join('')}</ul>`:Empty('Nenhuma vitória ainda. Bora assombrar! 👻')}
@@ -676,13 +678,14 @@ function UserLeilao(){
 }
 /* Doar: lista só com os NOMES dos outros (de fn_leilao); quem doa é a pessoa do token */
 function DonateCard(w){
-  const others=(U.leilao.pessoas||[]);
+  const others=U.pessoas||[];
   return `<section class="card"><div class="card-h"><h3>🤝 Doar dinheiro</h3><span class="muted small">Só dinheiro — a pontuação não muda</span></div>
+    <p class="muted small" style="margin-bottom:12px">Perdeu uma aposta? Transfira o valor para quem ganhou. Também vale para ajudar alguém no leilão.</p>
     ${!others.length?Empty('Não há outros participantes.'):w.balance<=0?Empty('Você não tem saldo para doar.'):`
     <form data-form="donate" class="stack">
       <div class="two"><label class="fld">Para quem<select name="to" required><option value="">Escolha…</option>${others.map(o=>`<option value="${esc(o.id)}">${esc(o.nome)}</option>`).join('')}</select></label>
         <label class="fld">Valor (R$)<input name="amount" type="number" min="0.01" step="0.01" required placeholder="0,00"><span class="fld-hint">Você pode doar até <b class="mval">${BRL(w.balance)}</b></span></label></div>
-      <label class="fld">Recado (opcional)<input name="note" maxlength="60" placeholder="Ex.: para você arrematar a caixa #05"></label>
+      <label class="fld">Recado (opcional)<input name="note" maxlength="60" placeholder="Ex.: aposta do Quiz do Terror"></label>
       <div class="row end"><button class="btn primary" type="submit">Doar</button></div>
     </form>`}
   </section>`;
@@ -746,12 +749,13 @@ const actions={
     confirmBox('Encerrar o período de jogos?',`Os jogos deixam de aceitar cadastro e pontuação, o <b>leilão é liberado</b> e todos os participantes passam a ver todos os jogos jogados e os vencedores — sem os valores em dinheiro. As colocações e a pontuação continuam ocultas até você tocar em <b>Exibir ranking</b>.${n?`<br><br>⚠️ Ainda há <b>${n} jogo(s)</b> sem resultado.`:''}`,'Encerrar período de jogos',
       ()=>run(()=>rpc('fn_admin_encerrar'),'Período de jogos encerrado. Leilão liberado! 🎁'))},
   'ask-reopen-event':()=>{
-    const sold=S.auction.items.filter(i=>i.sold),tot=round2(sold.reduce((a,i)=>a+i.price,0)),tr=S.transfers.length;
+    /* só arremates contam como "leilão iniciado": doações valem com os jogos abertos ou encerrados */
+    const sold=S.auction.items.filter(i=>i.sold),tot=round2(sold.reduce((a,i)=>a+i.price,0));
     const reopen=()=>run(()=>rpc('fn_admin_reabrir'),'Período de jogos reaberto.');
-    if(!sold.length&&!tr)return confirmBox('Reabrir o período de jogos?','Os jogos voltam a ficar abertos e ativos, o ranking volta a ficar oculto para os participantes e o leilão fica bloqueado até você encerrar de novo.','Reabrir',reopen,false);
-    confirmBox('⚠️ O leilão já começou',`Já existem ${sold.length?`<b>${sold.length} arremate(s)</b> (${BRL(tot)})`:''}${sold.length&&tr?' e ':''}${tr?`<b>${tr} doação(ões)</b>`:''}. Se reabrir o período de jogos:<br><br>
+    if(!sold.length)return confirmBox('Reabrir o período de jogos?','Os jogos voltam a ficar abertos e ativos, o ranking volta a ficar oculto para os participantes e o leilão fica bloqueado até você encerrar de novo. As doações entre participantes continuam liberadas.','Reabrir',reopen,false);
+    confirmBox('⚠️ O leilão já começou',`Já existem <b>${sold.length} arremate(s)</b> (${BRL(tot)}). Se reabrir o período de jogos:<br><br>
       • os arremates e doações feitos <b>continuam valendo</b>;<br>
-      • novos arremates e doações ficam <b>bloqueados</b> até encerrar de novo;<br>
+      • novos arremates ficam <b>bloqueados</b> até encerrar de novo;<br>
       • se você alterar ou registrar resultados, os <b>saldos mudam</b> — quem já gastou pode ficar com <b>saldo negativo</b>;<br>
       • os participantes deixam de ver o resultado final e a aba Leilão, e o ranking volta a ficar oculto.<br><br>Para desfazer um arremate, use "Desfazer venda" na caixa, sem reabrir.`,'Reabrir mesmo assim',reopen);
   },
@@ -859,8 +863,8 @@ const forms={
     if(!(amount>0))return toast('Informe o valor.');
     run(()=>rpc('fn_admin_creditar',{p_para:b.id,p_valor:amount,p_motivo:note}),`${BRL(amount)} creditados para ${b.name} pelo ADM 🧙`)},
   /* Doação do participante: o banco identifica quem doa pelo token e confere período e saldo */
-  'donate':fd=>{if(mode!=='user'||!U.leilao)return;
-    const b=(U.leilao.pessoas||[]).find(x=>x.id===fd.to),amount=round2(fd.amount),note=(fd.note||'').trim(),w=walletU();
+  'donate':fd=>{if(mode!=='user')return;
+    const b=(U.pessoas||[]).find(x=>x.id===fd.to),amount=round2(fd.amount),note=(fd.note||'').trim(),w=walletU();
     if(!b)return toast('Escolha para quem doar.');
     if(!(amount>0))return toast('Informe o valor.');
     if(amount>w.balance)return toast(`Saldo insuficiente: você tem ${BRL(w.balance)}.`);

@@ -68,9 +68,9 @@ Cada jogo tem um formato = quem pontua × como registra:
 ## Período de jogos
 
 - Flag aberto/encerrado. Controle na **aba Leilão**: botões **"Encerrar período de jogos"** / **"Reabrir período de jogos"**. O Painel só mostra o status e um atalho para o Leilão.
-- Aberto: admin cadastra e pontua; leilão e doações bloqueados; participante vê regras dos jogos, próprias vitórias e a quantidade de vitórias de cada pessoa.
-- Encerrado: admin não cadastra nem pontua; leilão e doações liberados; participante vê todos os jogos com vencedores e a aba Leilão; colocação e pontuação só depois de "Exibir ranking" — nunca o dinheiro dos outros.
-- **Reabrir com leilão iniciado** (há arremates ou transferências): exigir confirmação explicando que arremates/transferências continuam valendo, novos ficam bloqueados até encerrar de novo e que alterar resultados muda saldos (pode ficar negativo). Para corrigir arremate, usar "Desfazer venda".
+- Aberto: admin cadastra e pontua; leilão bloqueado; doações entre participantes liberadas (apostas); participante vê regras dos jogos, próprias vitórias e a quantidade de vitórias de cada pessoa.
+- Encerrado: admin não cadastra nem pontua; leilão liberado; participante vê todos os jogos com vencedores e a aba Leilão; colocação e pontuação só depois de "Exibir ranking" — nunca o dinheiro dos outros.
+- **Reabrir com leilão iniciado** (há arremates): exigir confirmação explicando que arremates e doações continuam valendo, novos arremates ficam bloqueados até encerrar de novo e que alterar resultados muda saldos (pode ficar negativo). Para corrigir arremate, usar "Desfazer venda".
 
 ## Leilão de caixas surpresa
 
@@ -92,11 +92,11 @@ Ao final dos jogos, o dinheiro fictício vira saldo para um leilão de caixas su
 
 ## Doações entre participantes
 
-- **Quem doa é o próprio participante** (não o admin): na aba Leilão escolhe para quem, quanto e um recado opcional; confirma num modal. Só com período de jogos encerrado. **Só dinheiro**: pontos, vitórias e ranking não mudam.
-- Valor ≤ saldo de quem doa. O participante vê só os nomes dos outros, nunca o saldo deles.
+- **Quem doa é o próprio participante** (não o admin): escolhe para quem, quanto e um recado opcional; confirma num modal. Liberado **com os jogos abertos ou encerrados** — a ideia é permitir apostas: quem perde transfere um valor para quem ganhou. Com os jogos abertos o formulário fica em **Meu painel**; encerrado, na aba **Leilão**. **Só dinheiro**: pontos, vitórias e ranking não mudam.
+- Valor ≤ saldo de quem doa. Se o admin depois alterar um resultado com os jogos abertos, o saldo de quem já doou pode ficar negativo. O participante vê só os nomes dos outros, nunca o saldo deles.
 - O participante não desfaz a doação. O admin vê todas as doações e pode desfazer uma, desde que quem recebeu ainda tenha esse saldo.
 - Participante vê em **Meu dinheiro** (saldo; ganhei nos jogos; recebi do ADM; recebi de doações; doei; gastei no leilão) e **Como usei meu dinheiro**: extrato com arremates e doações feitas/recebidas (nome da outra pessoa, recado, horário, valor) e total gasto no leilão. Mesma regra de privacidade do prêmio.
-- Implementação: `fn_doar(token, para, valor, recado)` identifica quem doa **pelo token de sessão**, nunca por parâmetro vindo do navegador. Arremate e doação conferem, na mesma transação, período encerrado + saldo suficiente (e caixa disponível, com lock da linha, no arremate). Saldo é calculado, nunca guardado em coluna. A função do participante só devolve o conteúdo das caixas que ele arrematou.
+- Implementação: `fn_doar(token, para, valor, recado)` identifica quem doa **pelo token de sessão**, nunca por parâmetro vindo do navegador. Arremate confere, na mesma transação, período encerrado + saldo suficiente + caixa disponível (lock da linha); doação confere saldo suficiente com as duas pessoas travadas. Saldo é calculado, nunca guardado em coluna. A função do participante só devolve o conteúdo das caixas que ele arrematou.
 
 ## Novo evento
 

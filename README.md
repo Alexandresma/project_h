@@ -12,7 +12,7 @@ App web (celular primeiro) para organizar a gincana. Página estática — HTML,
 
 ## Rodar
 
-1. Banco pronto e testado: siga [supabase/README.md](supabase/README.md) (migrações 1 a 7).
+1. Banco pronto e testado: siga [supabase/README.md](supabase/README.md) (migrações 1 a 10).
 2. Em `config.js`, cole a **Project URL** e a chave **publishable** (ou anon) de *Project Settings → API Keys*. Nunca a secret/service_role — o app se recusa a abrir com ela.
 3. Sirva a pasta e abra no navegador:
 
@@ -44,7 +44,7 @@ Para atualizar o site depois: `git add -A`, `git commit -m "..."`, `git push`.
 - **Ranking**: os participantes veem só a quantidade de vitórias até o admin encerrar o período de jogos e tocar em "🏆 Exibir ranking" (aba *Ranking* ou *Painel*). Reabrir o período volta a ocultar. Em "Meus jogos" o participante vê só as regras de cada jogo.
 - **Crédito do ADM**: na aba *Leilão*, o admin dá qualquer valor a um participante, sem tirar de ninguém (só dinheiro). O participante vê como "Crédito do ADM".
 - **Período de jogos e leilão**: o admin encerra/reabre o período de jogos no topo da aba *Leilão*. Cadastra as caixas ali (dá para fazer antes) e, com o período encerrado, registra cada arremate. Saldo = ganho nos jogos + créditos do ADM + doações recebidas − doações feitas − gasto no leilão; o banco recusa valor acima do saldo.
-- **Doações**: com o período encerrado, o participante doa parte do saldo a outro na aba *Leilão* dele (só dinheiro; pontos não mudam). O admin acompanha e pode desfazer na aba *Leilão*.
+- **Doações / apostas**: a qualquer momento (jogos abertos ou encerrados) o participante doa parte do saldo a outro — ex.: quem perde uma aposta paga quem ganhou. Com os jogos abertos o formulário fica em *Meu painel*; encerrado, na aba *Leilão* (só dinheiro; pontos não mudam). O admin acompanha e pode desfazer na aba *Leilão*.
 - **Partidas**: no jogo, "↻ Nova partida" cria uma cópia zerada; as anteriores ficam no histórico e cada uma conta no ranking.
 - **Novo evento**: no *Painel*, "✨ Novo evento" apaga jogos, resultados, caixas e doações e começa outro evento (pode manter pessoas e grupos). Não dá para desfazer.
 - **Participante**: toca no próprio nome e digita a senha (4 a 6 dígitos) que o administrador definiu em *Pessoas → toque no nome → Senha de acesso*. Fica conectado até tocar em "Sair".
