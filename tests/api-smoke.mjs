@@ -104,7 +104,7 @@ check(caminhosPremio(painel.json).every(c => c === '$.premio' || c === '$.result
 const somaResultados = (painel.json?.resultados || []).reduce((s, r) => s + Number(r.premio), 0);
 check(Math.abs(somaResultados - Number(painel.json?.premio)) < 0.005, 'painel: total = soma dos meus resultados');
 check(jogos.status === 200 && Array.isArray(jogos.json)
-    && jogos.json.every(j => Object.keys(j).sort().join() === 'descricao,formato,id,modo,nome,partida,tipo'),
+    && jogos.json.every(j => Object.keys(j).sort().join() === 'descricao,divide_premio,formato,id,modo,nome,partida,tipo'),
   'meus jogos: só as regras (sem resultado, pontos nem prêmio)', (jogos.json || [])[0]);
 check(ranking.status === 200 && caminhosPremio(ranking.json).length === 0, 'ranking: nenhum prêmio', caminhosPremio(ranking.json));
 const visivel = !!painel.json?.evento?.ranking_visivel;

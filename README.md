@@ -12,7 +12,7 @@ App web (celular primeiro) para organizar a gincana. Página estática — HTML,
 
 ## Rodar
 
-1. Banco pronto e testado: siga [supabase/README.md](supabase/README.md) (migrações 1 a 10).
+1. Banco pronto e testado: siga [supabase/README.md](supabase/README.md) (migrações 1 a 11).
 2. Em `config.js`, cole a **Project URL** e a chave **publishable** (ou anon) de *Project Settings → API Keys*. Nunca a secret/service_role — o app se recusa a abrir com ela.
 3. Sirva a pasta e abra no navegador:
 
@@ -42,7 +42,8 @@ Para atualizar o site depois: `git add -A`, `git commit -m "..."`, `git push`.
 
 - **Administrador**: só a senha do usuário criado no Supabase Auth e marcado na tabela `admin` (o app busca o e-mail dessa conta no banco).
 - **Ranking**: os participantes veem só a quantidade de vitórias até o admin encerrar o período de jogos e tocar em "🏆 Exibir ranking" (aba *Ranking* ou *Painel*). Reabrir o período volta a ocultar. Em "Meus jogos" o participante vê só as regras de cada jogo.
-- **Crédito do ADM**: na aba *Leilão*, o admin dá qualquer valor a um participante, sem tirar de ninguém (só dinheiro). O participante vê como "Crédito do ADM".
+- **Jogo por grupo**: marque "Marcar pontos e dinheiro" para o grupo pontuar; os pontos e o dinheiro do grupo são divididos igualmente entre os membros (pontos arredondados para baixo). Desmarcado, o jogo só registra quem ganhou.
+- **Crédito do ADM**: na aba *Leilão*, o admin dá até R$ 100.000.000,00 a um participante, sem tirar de ninguém (só dinheiro). O participante vê como "Crédito do ADM".
 - **Período de jogos e leilão**: o admin encerra/reabre o período de jogos no topo da aba *Leilão*. Cadastra as caixas ali (dá para fazer antes) e, com o período encerrado, registra cada arremate. Saldo = ganho nos jogos + créditos do ADM + doações recebidas − doações feitas − gasto no leilão; o banco recusa valor acima do saldo.
 - **Doações / apostas**: a qualquer momento (jogos abertos ou encerrados) o participante doa parte do saldo a outro — ex.: quem perde uma aposta paga quem ganhou. Com os jogos abertos o formulário fica em *Meu painel*; encerrado, na aba *Leilão* (só dinheiro; pontos não mudam). O admin acompanha e pode desfazer na aba *Leilão*.
 - **Partidas**: no jogo, "↻ Nova partida" cria uma cópia zerada; as anteriores ficam no histórico e cada uma conta no ranking.

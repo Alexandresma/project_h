@@ -52,10 +52,10 @@ async function carregarAdmin(){
     q(sb.from('evento').select('nome,aberto,ranking_visivel').eq('id',1).single()),
     q(sb.from('grupo').select('id,nome,cor,icone,criado_em').order('criado_em')),
     q(sb.from('pessoa').select('id,nome,grupo_id,tem_senha,bloqueado_ate').order('nome')),
-    q(sb.from('jogo').select('id,nome,tipo,descricao,modo,formato,pontos,premio,pontos_1,premio_1,pontos_2,premio_2,pontos_3,premio_3,pontuado_em,criado_em,serie_id,numero_partida').order('criado_em')),
+    q(sb.from('jogo').select('id,nome,tipo,descricao,modo,formato,pontos,premio,pontos_1,premio_1,pontos_2,premio_2,pontos_3,premio_3,grupo_pontua,pontuado_em,criado_em,serie_id,numero_partida').order('criado_em')),
     q(sb.from('jogo_grupo').select('jogo_id,grupo_id')),
     q(sb.from('participacao').select('jogo_id,pessoa_id')),
-    q(sb.from('resultado').select('jogo_id,pessoa_id,grupo_id,colocacao,pontos,premio,registrado_em')),
+    q(sb.from('resultado').select('jogo_id,pessoa_id,grupo_id,colocacao,pontos,premio,registrado_em,conta')),
     q(sb.from('caixa').select('id,numero,conteudo,pessoa_id,valor,vendido_em').order('numero')),
     q(sb.from('transferencia').select('id,origem,de_pessoa_id,para_pessoa_id,valor,motivo,criado_em').order('criado_em')),
     rpc('fn_admin_ranking'),
@@ -65,10 +65,12 @@ async function carregarAdmin(){
     groups:grupos.map(g=>({id:g.id,name:g.nome,color:g.cor,icon:g.icone})),
     people:pessoas.map(p=>({id:p.id,name:p.nome,groupId:p.grupo_id,hasPwd:p.tem_senha,lockedUntil:p.bloqueado_ate&&new Date(p.bloqueado_ate)>new Date()?p.bloqueado_ate:null})),
     games:jogos.map(j=>{
-      const results=res.filter(r=>r.jogo_id===j.id).map(r=>({pid:r.pessoa_id,gid:r.grupo_id,place:r.colocacao,points:r.pontos,prize:Number(r.premio)}));
+      const results=res.filter(r=>r.jogo_id===j.id).map(r=>({pid:r.pessoa_id,gid:r.grupo_id,place:r.colocacao,points:r.pontos,prize:Number(r.premio),counts:r.conta!==false}));
+      /* por grupo: o total do grupo = soma do que os membros receberam (dividido igualmente) */
       const groupResults=[];
-      if(j.modo==='grupo')results.forEach(r=>{if(r.gid&&!groupResults.some(x=>x.gid===r.gid))groupResults.push({gid:r.gid,place:r.place,points:r.points,prize:r.prize})});
-      return{id:j.id,seriesId:j.serie_id,round:j.numero_partida,name:j.nome,type:j.tipo,desc:j.descricao,mode:j.modo,scoring:j.formato,points:j.pontos,prize:Number(j.premio),
+      if(j.modo==='grupo')results.forEach(r=>{if(!r.gid)return;const x=groupResults.find(y=>y.gid===r.gid);
+        if(x){x.points+=r.points;x.prize=round2(x.prize+r.prize)}else groupResults.push({gid:r.gid,place:r.place,points:r.points,prize:r.prize,counts:r.counts})});
+      return{id:j.id,seriesId:j.serie_id,round:j.numero_partida,name:j.nome,type:j.tipo,desc:j.descricao,mode:j.modo,scoring:j.formato,points:j.pontos,prize:Number(j.premio),groupScores:j.modo==='grupo'&&!!j.grupo_pontua,
         places:[1,2,3].map(n=>({points:j['pontos_'+n],prize:Number(j['premio_'+n])})),
         participants:part.filter(x=>x.jogo_id===j.id).map(x=>x.pessoa_id),
         groups:jg.filter(x=>x.jogo_id===j.id).map(x=>x.grupo_id),
@@ -163,7 +165,7 @@ function statsOf(pid){
   for(const g of S.games){
     if(partsOf(g).includes(pid))s.played++;
     const r=resultOf(g,pid);
-    if(r){if(r.place===1)s.wins++;else s.podiums++;s.points+=r.points;s.prize+=r.prize}
+    if(r&&r.counts){if(r.place===1)s.wins++;else s.podiums++;s.points+=r.points;s.prize+=r.prize}
   }
   return s;
 }
@@ -241,17 +243,18 @@ function ModeBadges(modo,formato){
   return `<span class="badge mode">${modo==='grupo'?'👥 Por grupo':'👤 Individual'}</span><span class="badge">${formato==='colocacao'?'🥇 1º/2º/3º':'🏆 Vencedor'}</span>`;
 }
 function ValuesText(g){
-  const per=g.mode==='grupo'?' por membro':'';
+  if(g.mode==='grupo'&&!g.groupScores)return '<span>📝 Só registra quem ganhou: não conta vitória, pontos nem dinheiro</span>';
+  const per=g.mode==='grupo'?' por grupo (dividido entre os membros)':'';
   if(g.scoring==='colocacao')return `<span>⭐ ${g.places.map((p,i)=>`${i+1}º ${p.points}`).join(' · ')} pts${per}</span><span class="money">💰 ${g.places.map((p,i)=>`${i+1}º ${BRL(p.prize)}`).join(' · ')}</span>`;
   return `<span>⭐ ${g.points} pts por vitória${per}</span><span class="money">💰 ${BRL(g.prize)}${per}</span>`;
 }
 /* Vencedores (admin, a partir de S) no mesmo formato de fn_resultado_final */
 function winnersOf(g){
   if(g.status!=='pontuado')return[];
-  if(g.mode==='grupo')return g.groupResults.slice().sort((a,b)=>a.place-b.place).map(x=>{const gr=S.groups.find(y=>y.id===x.gid);return gr?{label:gr.icon+' '+gr.name,place:x.place,points:x.points,each:true}:null}).filter(Boolean);
+  if(g.mode==='grupo')return g.groupResults.slice().sort((a,b)=>a.place-b.place).map(x=>{const gr=S.groups.find(y=>y.id===x.gid);return gr?{label:gr.icon+' '+gr.name,place:x.place,points:x.counts?x.points:null,each:false}:null}).filter(Boolean);
   return g.results.slice().sort((a,b)=>a.place-b.place).map(r=>{const p=person(r.pid);return p?{label:p.name,place:r.place,points:r.points}:null}).filter(Boolean);
 }
-const winnersFromServer=v=>(v||[]).map(x=>({label:x.cada?x.icone+' '+x.nome:x.nome,place:x.colocacao,points:x.pontos,each:!!x.cada}));
+const winnersFromServer=v=>(v||[]).map(x=>({label:x.cada?x.icone+' '+x.nome:x.nome,place:x.colocacao,points:x.pontos,each:false}));
 function WinnersChips(formato,w,showPts=true){
   if(!w.length)return '<small class="muted">Sem vencedores</small>';
   return `<div class="chips">${w.map(x=>`<span class="chip win-chip">${winIco(formato,x.place)} ${esc(x.label)}${showPts&&x.points!=null?` <b>+${x.points}${x.each?' cada':''}</b>`:''}</span>`).join('')}</div>`;
@@ -365,6 +368,7 @@ function AdminPainel(){
   const pending=S.games.filter(g=>g.status!=='pontuado');
   const totalPrize=rk.reduce((a,r)=>a+r.prize,0),totalWins=rk.reduce((a,r)=>a+r.wins,0);
   const semSenha=S.people.filter(p=>!p.hasPwd).length;
+  const totalAdm=round2(S.transfers.filter(t=>t.from==='admin').reduce((a,t)=>a+t.amount,0));
   return `
   <section class="flag ${o?'on':'off'}">
     <div class="flag-main"><div class="flag-dot"></div><div>
@@ -373,7 +377,7 @@ function AdminPainel(){
     <div class="row gap" style="flex-wrap:wrap">${o?'':(revealed()?'<button type="button" class="btn" data-action="hide-ranking">Ocultar ranking</button>':'<button type="button" class="btn primary" data-action="ask-show-ranking">🏆 Exibir ranking</button>')}<button type="button" class="btn" data-action="admin-tab" data-tab="leilao">🎁 Ir para o Leilão</button></div>
   </section>
   ${semSenha?`<div class="notice">🔑 ${semSenha} participante(s) ainda sem senha — não conseguem entrar. <button type="button" class="link" data-action="admin-tab" data-tab="pessoas">Definir senhas ›</button></div>`:''}
-  <div class="tiles">${Tile(S.people.length,'Participantes')}${Tile(S.groups.length,'Grupos')}${Tile(scored+'/'+S.games.length,'Jogos pontuados')}${Tile(totalWins,'Vitórias registradas')}${Tile(BRL(totalPrize),'Prêmios (fictício)','money')}</div>
+  <div class="tiles t6">${Tile(S.people.length,'Participantes')}${Tile(S.groups.length,'Grupos')}${Tile(scored+'/'+S.games.length,'Jogos pontuados')}${Tile(totalWins,'Vitórias registradas')}${Tile(BRL(totalPrize),'Prêmios dos jogos (fictício)','money')}${Tile(BRL(totalAdm),'Distribuído pelo ADM','money')}</div>
   <div class="grid2">
     <section class="card"><div class="card-h"><h3>🏆 Pódio atual <span class="muted small">(${o?'por vitórias':'por pontos'})</span></h3><button type="button" class="link" data-action="admin-tab" data-tab="ranking">Ranking completo ›</button></div>${Podium(rk,rule())}</section>
     <section class="card"><div class="card-h"><h3>🏴 Grupos</h3><button type="button" class="link" data-action="admin-tab" data-tab="grupos">Gerenciar ›</button></div>${GroupRank(S.groupRank,{money:true})}</section>
@@ -406,8 +410,8 @@ function ResultRow(g,key,title,sub,saved,dis){
   const place=scored&&saved?saved.place:0;
   const def=g.scoring==='colocacao'?g.places[(place||1)-1]:{points:g.points,prize:g.prize};
   const pts=saved?saved.points:def.points,prz=saved?saved.prize:def.prize;
-  const per=g.mode==='grupo'?'/membro':'';
-  const vals=`<div class="res-vals"><label>Pts${per}<input type="number" class="res-pts" min="0" step="1" value="${pts}" ${dis}></label><label>R$${per}<input type="number" class="res-prize" min="0" step="0.01" value="${prz}" ${dis}></label></div>`;
+  const per=g.mode==='grupo'?' do grupo':'';
+  const vals=g.mode==='grupo'&&!g.groupScores?'':`<div class="res-vals"><label>Pts${per}<input type="number" class="res-pts" min="0" step="1" value="${pts}" ${dis}></label><label>R$${per}<input type="number" class="res-prize" min="0" step="0.01" value="${prz}" ${dis}></label></div>`;
   const name=`<div class="res-name">${title}<small>${sub}</small></div>`;
   if(g.scoring==='vitoria'){
     return `<div class="res-row ${place?'win':''}" data-key="${key}">
@@ -425,7 +429,7 @@ function GameDetail(g){
   let step1,rows,count;
   if(grp){
     const sel=S.groups.filter(gr=>g.groups.includes(gr.id));count=sel.length;
-    step1=S.groups.length?`<p class="muted small">Escolha os grupos que vão disputar. <b>Todos os membros</b> do grupo recebem a mesma pontuação.</p>
+    step1=S.groups.length?`<p class="muted small">Escolha os grupos que vão disputar. ${g.groupScores?'Os pontos e o dinheiro do grupo são <b>divididos igualmente</b> entre os membros.':'Este jogo <b>só registra quem ganhou</b>: não conta vitória, pontos nem dinheiro.'}</p>
       <div class="check-groups">${S.groups.map(gr=>{const mem=membersOf(gr.id);return `<label class="ck grp-ck" style="--c:${gr.color}"><input type="checkbox" data-change="toggle-game-group" value="${gr.id}" ${g.groups.includes(gr.id)?'checked':''} ${dis}><span><b>${esc(gr.icon+' '+gr.name)}</b><small>${mem.length?esc(mem.map(p=>p.name).join(', ')):'Sem membros'}</small></span></label>`}).join('')}</div>`
       :Empty('Crie grupos na aba Grupos.');
     rows=sel.map(gr=>{const mem=membersOf(gr.id);return ResultRow(g,gr.id,esc(gr.icon+' '+gr.name),`${mem.length} ${mem.length===1?'membro':'membros'}: ${esc(mem.map(p=>p.name).join(', ')||'—')}`,g.groupResults.find(x=>x.gid===gr.id),dis)}).join('');
@@ -449,7 +453,7 @@ function GameDetail(g){
   ${o?'':Locked()}
   <section class="card"><div class="card-h"><h3><span class="step">1</span>${grp?'Grupos participantes':'Participantes'} <span class="muted small">(${count})</span></h3></div>${step1}</section>
   <section class="card"><div class="card-h"><h3><span class="step">2</span>Resultado e pontuação</h3></div>
-    ${count?`<p class="muted small">${help} Pontos e prêmio vêm do jogo, mas podem ser ajustados${grp?' (valores por membro)':' por pessoa'}.</p>
+    ${count?`<p class="muted small">${help} ${grp&&!g.groupScores?'Para dar pontos e dinheiro, edite o jogo e marque "Marcar pontos e dinheiro".':`Pontos e prêmio vêm do jogo, mas podem ser ajustados${grp?' (valor do grupo, dividido igualmente entre os membros: pontos arredondados para baixo, centavos que sobram para os primeiros em ordem alfabética)':' por pessoa'}.`}</p>
     <div class="results">${rows}</div>
     <div class="row end"><button type="button" class="btn primary" data-action="save-results" ${dis}>${g.status==='pontuado'?'Atualizar pontuação':'Salvar pontuação'}</button></div>`
     :Empty(grp?'Selecione os grupos no passo 1 para registrar o resultado.':'Adicione participantes no passo 1 para registrar o resultado.')}
@@ -478,11 +482,12 @@ function PersonDetail(p){
   const s=statsOf(p.id),games=S.games.filter(g=>partsOf(g).includes(p.id)||resultOf(g,p.id));
   const o=S.event.open;
   const w=walletOf(p.id);
-  return `<div class="tiles t3">${Tile(s.points,'Pontos')}${Tile(s.wins,'Vitórias')}${Tile(BRL(w.balance),'Saldo','money')}</div>
+  return `<div class="tiles t2">${Tile(s.points,'Pontos')}${Tile(s.wins,'Vitórias')}</div>
+  <div class="tile money full" style="margin-top:10px"><b>${BRL(w.balance)}</b><span>Saldo</span></div>
   <p class="muted small" style="margin-top:8px">${WalletLine(w)}</p>
   ${w.moves.length?`<h4>Movimentações (${w.moves.length})</h4>${MovesList(w)}`:''}
   <h4>Jogos (${games.length})</h4>
-  ${games.length?`<ul class="mini">${games.map(g=>{const r=resultOf(g,p.id);return `<li><span>${GameTitle(g)}<small>${g.type} · ${g.mode==='grupo'?'por grupo':'individual'}</small></span><span class="row gap">${r?`<small>+${r.points} pts · <span class="money">${BRL(r.prize)}</span></small>`:''}${ResultBadge(g.status==='pontuado',g.scoring,r)}</span></li>`}).join('')}</ul>`:Empty('Ainda não participou de nenhum jogo.')}
+  ${games.length?`<ul class="mini">${games.map(g=>{const r=resultOf(g,p.id);return `<li><span>${GameTitle(g)}<small>${g.type} · ${g.mode==='grupo'?'por grupo':'individual'}</small></span><span class="row gap">${r?(r.counts?`<small>+${r.points} pts · <span class="money">${BRL(r.prize)}</span></small>`:'<small class="muted">só registro</small>'):''}${ResultBadge(g.status==='pontuado',g.scoring,r)}</span></li>`}).join('')}</ul>`:Empty('Ainda não participou de nenhum jogo.')}
   <h4>🔑 Senha de acesso</h4>
   <p class="muted small">${p.hasPwd?'Senha definida. Por segurança ela não pode ser vista; se a pessoa esquecer, defina uma nova.':'<b>Sem senha:</b> a pessoa ainda não consegue entrar.'}
     ${p.lockedUntil?`<br>🔒 Bloqueada por tentativas erradas até ${hora(p.lockedUntil)}.`:''}</p>
@@ -634,7 +639,7 @@ function UserEu(){
 }
 /* Meus jogos: só as regras (o servidor não manda resultado nem pontos) */
 function RulesText(g){
-  return `<span class="rules"><small>${g.formato==='colocacao'?'🥇 Vale 1º, 2º e 3º lugar':'🏆 Vale só a vitória (vencedor ou derrota)'}</small><small>${g.modo==='grupo'?'👥 Pontuação por grupo: todos do grupo recebem igual':'👤 Individual: cada pessoa pelo próprio resultado'}</small></span>`;
+  return `<span class="rules"><small>${g.formato==='colocacao'?'🥇 Vale 1º, 2º e 3º lugar':'🏆 Vale só a vitória (vencedor ou derrota)'}</small><small>${g.modo==='grupo'?(g.divide_premio?'👥 Por grupo: o prêmio do grupo é dividido igualmente entre os membros':'👥 Por grupo: só por diversão — não conta vitória nem prêmio'):'👤 Individual: cada pessoa pelo próprio resultado'}</small></span>`;
 }
 function UserJogos(){
   const games=U.jogos;
@@ -648,7 +653,7 @@ function WinsList(linhas){
   if(!linhas.length)return Empty('Nenhum participante ainda.');
   return `<ol class="rank">${linhas.map(r=>{const g=grp(r.grupo),me=r.pessoa_id===U.painel.pessoa_id;return `<li class="rk ${me?'me':''}">${Av(r.nome,g)}<span class="rk-name"><span>${esc(r.nome)}${me?' <em>você</em>':''}</span><small>${GLabel(g)}</small></span><span class="rk-stats"><span class="cell"><b>${r.vitorias}</b><small>${r.vitorias===1?'vitória':'vitórias'}</small></span></span></li>`}).join('')}</ol>`;
 }
-const WINS_TEXT='Aqui aparece só a quantidade de vitórias de cada pessoa (1º lugar ou vencedor). As colocações e a pontuação são reveladas pelo organizador depois que os jogos terminarem.';
+const WINS_TEXT='Aqui aparece a quantidade de vitórias de cada pessoa (1º lugar ou vencedor).';
 function UserRanking(){
   return `<section class="card"><div class="card-h"><h3>🏆 Vitórias</h3></div>
     <p class="muted small" style="margin-bottom:12px">${WINS_TEXT}</p>${WinsList(U.ranking.linhas)}</section>`;
@@ -679,7 +684,7 @@ function UserLeilao(){
 /* Doar: lista só com os NOMES dos outros (de fn_leilao); quem doa é a pessoa do token */
 function DonateCard(w){
   const others=U.pessoas||[];
-  return `<section class="card"><div class="card-h"><h3>🤝 Doar dinheiro</h3><span class="muted small">Só dinheiro — a pontuação não muda</span></div>
+  return `<section class="card"><div class="card-h"><h3>🤝 Doar dinheiro</h3></div>
     <p class="muted small" style="margin-bottom:12px">Perdeu uma aposta? Transfira o valor para quem ganhou. Também vale para ajudar alguém no leilão.</p>
     ${!others.length?Empty('Não há outros participantes.'):w.balance<=0?Empty('Você não tem saldo para doar.'):`
     <form data-form="donate" class="stack">
@@ -696,7 +701,7 @@ function UserTodos(){
   return `<section class="card"><div class="card-h"><h3>🎲 Jogos e gincanas jogados</h3></div>
     ${list.length?`<div class="games-all">${list.map(g=>`<div class="ga"><div class="ga-h"><b>${TitleU(g.nome,g.partida)}</b><span class="badge">${esc(g.tipo)}</span></div>
       <div class="badges">${ModeBadges(g.modo,g.formato)}</div>
-      ${g.pontuado?WinnersChips(g.formato,winnersFromServer(g.vencedores),!!U.final.visivel):'<small class="muted">Não foi pontuado</small>'}
+      ${g.pontuado?WinnersChips(g.formato,winnersFromServer(g.vencedores),!!U.final.visivel):'<small class="muted">Sem resultado</small>'}
       <small class="muted">${g.participantes} participantes</small></div>`).join('')}</div>`:Empty('Nenhum jogo cadastrado.')}
   </section>`;
 }
@@ -779,7 +784,8 @@ const actions={
       let place=0;
       if(g.scoring==='vitoria')place=r.querySelector('.res-win').checked?1:0;
       else{const c=r.querySelector('.res-place:checked');place=c?Number(c.value):0}
-      return{key:r.dataset.key,place,points:int(r.querySelector('.res-pts').value),prize:num(r.querySelector('.res-prize').value)};
+      const pe=r.querySelector('.res-pts'),re=r.querySelector('.res-prize');
+      return{key:r.dataset.key,place,points:pe?int(pe.value):0,prize:re?num(re.value):0};
     }).filter(x=>x.place>0);
     const itens=picks.map(x=>({[g.mode==='grupo'?'grupo_id':'pessoa_id']:x.key,colocacao:x.place,pontos:x.points,premio:x.prize}));
     const n=picks.length,who=g.mode==='grupo'?'grupo(s)':'pessoa(s)';
@@ -880,16 +886,17 @@ const forms={
   'game':fd=>{const name=(fd.name||'').trim();if(!name)return;
     const data={nome:name,tipo:fd.type==='Jogo'?'Jogo':'Gincana',modo:fd.mode==='grupo'?'grupo':'individual',formato:fd.scoring==='colocacao'?'colocacao':'vitoria',
       pontos:int(fd.points),premio:num(fd.prize),descricao:(fd.desc||'').trim()};
+    data.grupo_pontua=data.modo==='grupo'&&!!fd.groupScores;
     [1,2,3].forEach(n=>{data['pontos_'+n]=int(fd['p'+n]);data['premio_'+n]=num(fd['r'+n])});
     closeModal();
     if(fd.id){
       const g=S.games.find(x=>x.id===fd.id);if(!g)return;
-      const mudou=g.mode!==data.modo||g.scoring!==data.formato;
+      const mudou=g.mode!==data.modo||g.scoring!==data.formato||g.groupScores!==data.grupo_pontua;
       run(async()=>{
         await q(sb.from('jogo').update(data).eq('id',g.id));     // mudar o formato apaga o resultado (gatilho no banco)
         if(mudou&&data.modo==='grupo'&&!g.groups.length)await addGroups(g.id,S.groups.map(x=>x.id));
         if(mudou&&data.modo==='individual'&&g.mode==='grupo'){const ids=partsOf(g).filter(x=>!g.participants.includes(x));await addParts(g.id,ids)}
-        return{msg:mudou&&g.status==='pontuado'?'Formato alterado: registre o resultado novamente.':'Jogo atualizado.'};
+        return{msg:mudou&&g.status==='pontuado'?'Regra alterada: registre o resultado novamente.':'Jogo atualizado.'};
       });
     }else{
       run(async()=>{
@@ -932,10 +939,10 @@ function GameForm(g){
   const mode=g.mode||'individual',scoring=g.scoring||'vitoria',places=g.places||[{points:10,prize:20},{points:6,prize:10},{points:3,prize:5}];
   return `<form data-form="game" class="stack" data-mode="${mode}" data-scoring="${scoring}">${g.id?`<input type="hidden" name="id" value="${g.id}">`:''}
     <label class="fld">Nome<input name="name" required maxlength="60" value="${esc(g.name||'')}" placeholder="Ex.: Corrida do Caldeirão"></label>
-    <label class="fld">Tipo<select name="type">${['Gincana','Jogo'].map(t=>`<option ${g.type===t?'selected':''}>${t}</option>`).join('')}</select></label>
+    <label class="fld">Tipo<select name="type">${['Jogo','Gincana'].map(t=>`<option ${(g.type||'Jogo')===t?'selected':''}>${t}</option>`).join('')}</select></label>
     <div><div class="lbl">Quem pontua</div><div class="opt-cards">
       <label class="oc"><input type="radio" name="mode" value="individual" data-change="game-form" ${mode==='individual'?'checked':''}><span><b>👤 Individual</b><small>Cada pessoa pontua pelo próprio resultado</small></span></label>
-      <label class="oc"><input type="radio" name="mode" value="grupo" data-change="game-form" ${mode==='grupo'?'checked':''}><span><b>👥 Por grupo</b><small>Todos do grupo recebem a mesma pontuação</small></span></label></div></div>
+      <label class="oc"><input type="radio" name="mode" value="grupo" data-change="game-form" ${mode==='grupo'?'checked':''}><span><b>👥 Por grupo</b><small>O resultado vale para o grupo inteiro</small></span></label></div></div>
     <div><div class="lbl">Como registrar o resultado</div><div class="opt-cards">
       <label class="oc"><input type="radio" name="scoring" value="vitoria" data-change="game-form" ${scoring==='vitoria'?'checked':''}><span><b>🏆 Vencedor</b><small>Marca quem venceu (vitória ou derrota)</small></span></label>
       <label class="oc"><input type="radio" name="scoring" value="colocacao" data-change="game-form" ${scoring==='colocacao'?'checked':''}><span><b>🥇 1º, 2º e 3º lugar</b><small>Pontuação diferente por colocação</small></span></label></div></div>
@@ -943,9 +950,9 @@ function GameForm(g){
       <label class="fld">Prêmio por vitória (R$)<input name="prize" type="number" min="0" step="0.01" value="${g.prize??20}"></label></div>
     <div class="only-col"><div class="places-grid"><span></span><span class="ph">Pontos</span><span class="ph">Prêmio (R$)</span>
       ${places.map((p,i)=>`<span class="pl">${medalOf(i+1)} ${i+1}º</span><input name="p${i+1}" type="number" min="0" step="1" value="${p.points}" aria-label="Pontos ${i+1}º lugar"><input name="r${i+1}" type="number" min="0" step="0.01" value="${p.prize}" aria-label="Prêmio ${i+1}º lugar">`).join('')}</div></div>
-    <p class="muted small only-grp">No modo por grupo, pontos e prêmio são <b>por membro</b>: cada pessoa do grupo recebe o valor cheio.</p>
+    <label class="ck only-grp"><input type="checkbox" name="groupScores" ${g.groupScores?'checked':''}><span><b>Marcar pontos e dinheiro</b><br><small class="muted">Marcado: os pontos e o dinheiro do grupo são somados e divididos igualmente entre os membros. Desmarcado: o jogo só registra quem ganhou — não conta vitória, pontos nem dinheiro.</small></span></label>
     <label class="fld">Descrição (opcional)<input name="desc" maxlength="120" value="${esc(g.desc||'')}" placeholder="Regras ou observações"></label>
-    ${g.id&&g.status==='pontuado'?'<p class="muted small">Mudar valores aqui não altera resultados já registrados (ajuste no passo 2). Mudar o formato apaga o resultado registrado.</p>':''}
+    ${g.id&&g.status==='pontuado'?'<p class="muted small">Mudar valores aqui não altera resultados já registrados (ajuste no passo 2). Mudar o formato ou "Marcar pontos e dinheiro" apaga o resultado registrado.</p>':''}
     <div class="row end gap"><button type="button" class="btn ghost" data-action="close-modal">Cancelar</button><button class="btn primary" type="submit">${g.id?'Salvar':'Criar e escolher participantes'}</button></div>
   </form>`;
 }

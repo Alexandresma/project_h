@@ -16,6 +16,7 @@ Fase 1: só o banco. As telas serão ligadas depois que os testes abaixo passare
    8. `migrations/20261112000008_permissoes_funcoes.sql` (refaz o EXECUTE de todas as funções: `fn_admin_*` só para `authenticated`, funções do participante para `anon`, internas para ninguém; no fim confere tudo e dá erro se algo estiver fora da regra — inclusive se alguma `fn_admin_*` não começar checando o admin)
    9. `migrations/20261112000009_doacoes_abertas.sql` (doações entre participantes liberadas também com os jogos abertos — apostas)
    10. `migrations/20261112000010_politicas_rls.sql` (recria as políticas RLS exatamente como no projeto, todas com `fn_is_admin`, e remove as que não são do projeto; o resultado mostra as removidas)
+   11. `migrations/20261113000011_grupo_divide_credito.sql` (jogo por grupo com "marcar pontos e dinheiro": desmarcado só registra quem ganhou, marcado divide igualmente entre os membros; crédito do ADM até R$ 100 milhões)
 
    (Quem tiver a CLI pode usar `npx supabase link` + `npx supabase db push`.)
 
@@ -47,27 +48,33 @@ O que ele verifica:
 - Ranking sem prêmio; com o ranking oculto, sem pontos nem colocação (no ranking, no painel e no resultado final); "Meus jogos" só com as regras.
 - Senha guardada como bcrypt; senha errada → só "Senha incorreta"; bloqueio após 5 erros; redefinir senha desbloqueia e derruba sessões; "Sair" invalida o token.
 - Ordem do ranking do admin (aberto: vitórias → pontos; encerrado: pontos → vitórias); iguais nos dois dividem a colocação e a seguinte é a próxima (1º, 2º, 2º, 3º); o horário não desempata; "no desempate"; quem não pontuou fica sem posição. O participante, com o ranking oculto, vê só as vitórias (ordem: vitórias → nome); depois de "Exibir ranking", a mesma ordem do admin.
-- Jogo por grupo: todos os membros iguais e conta uma vez no placar de grupos.
+- Jogo por grupo (com "marcar pontos e dinheiro"): valor do grupo dividido entre os membros; o placar de grupos soma o que os membros receberam.
 - Período de jogos encerrado bloqueia cadastro e pontuação; reabrir libera.
 - Mudar o formato apaga o resultado.
 
 ### Teste do leilão (SQL)
 
-Depois da migração 10, cole `tests/leilao.sql` inteiro e rode. Passou → `ERROR: TESTES OK (leilão): 50 verificações passaram…` (também é erro de propósito, nada fica gravado).
+Depois da migração 11, cole `tests/leilao.sql` inteiro e rode. Passou → `ERROR: TESTES OK (leilão): 50 verificações passaram…` (também é erro de propósito, nada fica gravado).
 
 Verifica: caixas numeradas em sequência; admin não vende nem cria caixa por fora das funções; arremate recusado com evento aberto, acima do saldo, valor ≤ 0 ou com mais de 2 casas; caixa vendida não é vendida de novo nem excluída; desfazer devolve o saldo; saldo = ganho − gasto; `anon` não lê `caixa` nem executa as funções de admin; **para cada participante**, nenhum valor, saldo ou conteúdo de caixa de outra pessoa aparece no que as funções devolvem; o participante vê o conteúdo só das caixas dele; leilão some com o evento aberto; excluir uma pessoa devolve as caixas dela.
 
 ### Teste de doações, partidas e novo evento (SQL)
 
-Depois da migração 10, cole `tests/doacoes_partidas.sql` inteiro e rode. Passou → `ERROR: TESTES OK (doações e partidas): 72 verificações passaram…` (erro de propósito, nada fica gravado).
+Depois da migração 11, cole `tests/doacoes_partidas.sql` inteiro e rode. Passou → `ERROR: TESTES OK (doações e partidas): 72 verificações passaram…` (erro de propósito, nada fica gravado).
 
 Verifica: nova partida copia o jogo zerado (sem participantes nem resultado), mantém os grupos e numera em sequência; renomear renomeia a série; série só pela função; cada partida conta no ranking; o número da partida só aparece quando a série tem mais de uma; doação aceita com os jogos abertos (e depois de reabrir), com saldo conferido e visível para quem recebeu; recusada para si mesmo, acima do saldo, valor ≤ 0, com mais de 2 casas ou recado longo; quem doa é a pessoa do token; saldo = ganho + recebido − doado − gasto; doação não muda pontos; doação já gasta não pode ser desfeita; admin lê mas não grava doações direto; `anon` não lê `transferencia` nem executa funções internas/de admin; **para cada participante**, nenhum saldo, doação ou recado de outra pessoa aparece no que as funções devolvem e a lista para doar tem só id e nome; novo evento apaga jogos, resultados, caixas e doações, mantendo (ou não) pessoas com senha e grupos.
 
 ### Teste de ranking oculto e crédito do ADM (SQL)
 
-Depois da migração 10, cole `tests/ranking_credito.sql` inteiro e rode. Passou → `ERROR: TESTES OK (ranking oculto e crédito): 45 verificações passaram…` (erro de propósito, nada fica gravado).
+Depois da migração 11, cole `tests/ranking_credito.sql` inteiro e rode. Passou → `ERROR: TESTES OK (ranking oculto e crédito): 45 verificações passaram…` (erro de propósito, nada fica gravado).
 
-Verifica: `anon` e quem não é admin não executam `fn_admin_exibir_ranking` nem `fn_admin_creditar`; `fn_email_admin` devolve o e-mail da conta do admin; com o ranking oculto, a lista de vitórias não tem pontos nem colocação e a ordem não muda quando os pontos mudam; painel sem pontos/posição; "Meus jogos" só com as regras; "Exibir ranking" recusado com o período aberto (e, mesmo com a flag ligada, nada aparece com o período aberto); crédito do ADM recusado com valor ≤ 0, mais de 2 casas, acima de R$ 1.000.000 ou para pessoa inexistente; crédito gravado com origem admin e sem quem doa; crédito não muda pontos; saldo = ganho + crédito + recebido − doado − gasto; extrato mostra "crédito" sem nome; outro participante não vê o crédito; vencedores sem pontos enquanto oculto; crédito já usado não pode ser desfeito; depois de exibir: pontos, posição e pódio, sem dinheiro de ninguém; ocultar, reabrir e novo evento voltam a ocultar.
+Verifica: `anon` e quem não é admin não executam `fn_admin_exibir_ranking` nem `fn_admin_creditar`; `fn_email_admin` devolve o e-mail da conta do admin; com o ranking oculto, a lista de vitórias não tem pontos nem colocação e a ordem não muda quando os pontos mudam; painel sem pontos/posição; "Meus jogos" só com as regras; "Exibir ranking" recusado com o período aberto (e, mesmo com a flag ligada, nada aparece com o período aberto); crédito do ADM recusado com valor ≤ 0, mais de 2 casas, acima de R$ 100.000.000 ou para pessoa inexistente; crédito gravado com origem admin e sem quem doa; crédito não muda pontos; saldo = ganho + crédito + recebido − doado − gasto; extrato mostra "crédito" sem nome; outro participante não vê o crédito; vencedores sem pontos enquanto oculto; crédito já usado não pode ser desfeito; depois de exibir: pontos, posição e pódio, sem dinheiro de ninguém; ocultar, reabrir e novo evento voltam a ocultar.
+
+### Teste de jogo por grupo e crédito grande (SQL)
+
+Depois da migração 11, cole `tests/grupos_credito.sql` inteiro e rode. Passou → `ERROR: TESTES OK (grupos e crédito): 20 verificações passaram…` (erro de propósito, nada fica gravado).
+
+Verifica: jogo novo por grupo vem desmarcado; desmarcado grava quem ganhou com 0 pontos e R$ 0 e não conta vitória, pontos, dinheiro nem placar de grupos (e não aparece no painel do participante); marcado divide igualmente (10 pts ÷ 3 = 3 cada; R$ 100 ÷ 3 = 33,34 + 33,33 + 33,33, a soma bate); grupo sem membros não gera nada; placar de grupos e vencedores com a soma do grupo; `fn_meus_jogos` diz se o prêmio é dividido; mudar a opção apaga o resultado; nova partida copia a opção; crédito do ADM aceita até R$ 100.000.000,00 e recusa acima.
 
 ## 4. Teste pela API (o que o navegador realmente recebe)
 
@@ -106,7 +113,7 @@ Depois apague a pessoa de teste: `delete from public.pessoa where nome = 'Teste 
 | | `fn_sair(p_token)` | — |
 | | `fn_email_admin()` | e-mail da conta do admin (para o login só com senha) |
 | | `fn_meu_painel(p_token)` | minhas vitórias, **meu prêmio**, meu saldo (ganho, crédito do ADM, recebido, doado, gasto, saldo), meus arremates, minhas doações e créditos, meus resultados; pontos e posição só com o ranking liberado |
-| | `fn_meus_jogos(p_token)` | só as regras dos meus jogos (nome, partida, tipo, descrição, modo, formato) |
+| | `fn_meus_jogos(p_token)` | só as regras dos meus jogos (nome, partida, tipo, descrição, modo, formato, se o prêmio do grupo é dividido) |
 | | `fn_ranking(p_token)` | oculto: só nome, grupo e vitórias (ordem vitórias → nome); liberado: + posição e pontos |
 | | `fn_resultado_final(p_token)` | só encerrado: oculto → lista de vitórias e vencedores sem pontos; liberado → ranking, grupos, jogos e vencedores com pontos |
 | | `fn_leilao(p_token)` | só encerrado: caixas (número, vendida, minha); conteúdo/valor só das minhas; nomes dos outros (para doar) |

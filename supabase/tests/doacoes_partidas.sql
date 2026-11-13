@@ -119,12 +119,13 @@ begin
   v_n := v_n + 1;
 
   -- por grupo: mantém os grupos escolhidos
-  insert into public.jogo (nome, tipo, modo, formato, pontos, premio)
-  values ('Caça às Abóboras', 'Gincana', 'grupo', 'vitoria', 10, 0) returning id into j2;
+  insert into public.jogo (nome, tipo, modo, formato, pontos, premio, grupo_pontua)
+  values ('Caça às Abóboras', 'Gincana', 'grupo', 'vitoria', 10, 0, true) returning id into j2;
   insert into public.jogo_grupo (jogo_id, grupo_id) values (j2, g2);
   j2b := public.fn_admin_nova_partida(j2);
   select string_agg(grupo_id::text, ',') into v_txt from public.jogo_grupo where jogo_id = j2b;
   assert v_txt = g2::text, 'FALHOU: nova partida por grupo deveria manter os grupos escolhidos';
+  assert (select grupo_pontua from public.jogo where id = j2b), 'FALHOU: nova partida deveria copiar "marcar pontos e dinheiro"';
   v_n := v_n + 1;
 
   -- renomear uma partida renomeia a série inteira (e só ela)

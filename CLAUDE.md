@@ -32,7 +32,11 @@ Cada jogo tem um formato = quem pontua × como registra:
 - Pontos e prêmio definidos por vitória ou por colocação; o admin pode ajustar por pessoa/grupo ao registrar.
 - Empates de colocação são permitidos.
 - Vitória = 1º lugar. 2º e 3º somam pontos e prêmio, mas não contam como vitória.
-- Por grupo: todos os membros recebem a mesma pontuação e prêmio. No ranking de grupos a gincana conta uma vez para o grupo.
+- Por grupo: opção **"Marcar pontos e dinheiro"** no jogo (desmarcada por padrão).
+  - **Desmarcada**: o resultado só registra quem ganhou — não conta vitória, pontos nem dinheiro para ninguém, nem no placar de grupos.
+  - **Marcada**: os pontos e o dinheiro do grupo são somados e **divididos igualmente** entre os membros. Pontos inteiros, arredondados para baixo (10 ÷ 3 = 3 cada); dinheiro em centavos, o centavo que sobra vai para os primeiros em ordem alfabética (a soma bate com o valor do grupo). No placar de grupos conta a soma do que os membros receberam.
+  - Mudar a opção num jogo com resultado apaga o resultado (como mudar o formato).
+- Novo jogo vem com o tipo **Jogo** selecionado.
 - Mudar o formato de um jogo com resultado apaga o resultado.
 - Cada resultado guarda o horário em que foi registrado (usado no desempate).
 
@@ -60,7 +64,8 @@ Cada jogo tem um formato = quem pontua × como registra:
 - Flag `ranking_visivel` (padrão falso). Admin libera com o botão **"🏆 Exibir ranking"** (aba Ranking e Painel), com confirmação; pode **ocultar** de novo. Só fica disponível com o **período de jogos encerrado**; reabrir o período volta a ocultar.
 - **Enquanto oculto** (jogos abertos ou encerrados sem liberar):
   - **Meu painel**: sem pontuação e sem colocação — mostra vitórias, quantidade de jogos, lista das próprias vitórias/colocações (sem pontos) e o dinheiro.
-  - **Meus jogos**: **só as regras** de cada jogo (vale 1º/2º/3º ou só vitória; individual ou por grupo). Sem resultado, sem pontos.
+  - **Meus jogos**: **só as regras** de cada jogo (vale 1º/2º/3º ou só vitória; individual ou por grupo, e se o prêmio do grupo é dividido). Sem resultado, sem pontos.
+  - Nenhum texto da tela do participante fala em pontuação enquanto o ranking estiver oculto (ele não deve saber que há pontos sendo calculados).
   - **Ranking** (jogos abertos) / **Resultado** (encerrado): lista só com a **quantidade de vitórias** de cada pessoa, sem número de colocação, sem medalhas, sem pontos. Ordenada por vitórias e depois por nome (nunca pelos pontos, para não vazar a pontuação).
   - **Jogos** (encerrado): vencedores de cada jogo sem os pontos.
 - **Depois de liberado**: Resultado com colocação, pontos, pódio e placar de grupos; Meu painel com pontuação e posição final; pontos nos vencedores dos jogos.
@@ -85,7 +90,7 @@ Ao final dos jogos, o dinheiro fictício vira saldo para um leilão de caixas su
 
 ## Crédito do ADM
 
-- Admin credita **qualquer valor** a um participante, sem tirar de ninguém (ex.: prêmio de fantasia). Só dinheiro: pontos, vitórias e ranking não mudam. Permitido com jogos abertos ou encerrados.
+- Admin credita **qualquer valor até R$ 100.000.000,00** a um participante, sem tirar de ninguém (ex.: prêmio de fantasia). Só dinheiro: pontos, vitórias e ranking não mudam. Permitido com jogos abertos ou encerrados.
 - Para o participante deve ficar **evidente** que veio do ADM: no saldo aparece "Recebi do ADM" e no extrato "🧙 Crédito do ADM — transferido pelo organizador", com motivo e horário.
 - Admin vê a lista de créditos e pode desfazer um, desde que o participante ainda tenha esse saldo.
 - Implementação: registro com origem ADM (ex.: `transferencia.de_pessoa_id` nulo + `origem = 'admin'`); só a conta do administrador cria (RLS/`is_admin`).

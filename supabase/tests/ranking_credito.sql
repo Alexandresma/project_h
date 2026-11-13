@@ -185,7 +185,7 @@ begin
   assert jsonb_array_length(v_r) = 3
      and not exists (select 1 from jsonb_array_elements(v_r) e
                       where (select string_agg(k, ',' order by k) from jsonb_object_keys(e) k)
-                            <> 'descricao,formato,id,modo,nome,partida,tipo'),
+                            <> 'descricao,divide_premio,formato,id,modo,nome,partida,tipo'),
     'FALHOU: meus jogos deveria ter só as regras: ' || v_r::text;
   assert (select e->>'descricao' from jsonb_array_elements(v_r) e where e->>'nome' = 'Corrida') = 'DESC-CORRIDA',
     'FALHOU: meus jogos com a descrição';
@@ -218,7 +218,7 @@ begin
   -- -------------------------------------------------------------------
   -- 4. Crédito do ADM (com o período ABERTO)
   -- -------------------------------------------------------------------
-  foreach v_txt in array array['0', '-5', '1.234', '2000000'] loop
+  foreach v_txt in array array['0', '-5', '1.234', '100000000.01'] loop
     v_estado := null;
     begin
       set local role authenticated;

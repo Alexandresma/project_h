@@ -91,7 +91,7 @@ begin
   -- J1: individual, 1º/2º/3º
   insert into public.jogo (nome, tipo, modo, formato) values ('Corrida do Caldeirão', 'Gincana', 'individual', 'colocacao') returning id into j1;
   -- J2: por grupo, vencedor (15 pts / R$ 30 por membro)
-  insert into public.jogo (nome, tipo, modo, formato, pontos, premio) values ('Caça às Abóboras', 'Gincana', 'grupo', 'vitoria', 15, 30) returning id into j2;
+  insert into public.jogo (nome, tipo, modo, formato, pontos, premio, grupo_pontua) values ('Caça às Abóboras', 'Gincana', 'grupo', 'vitoria', 30, 30, true) returning id into j2;
   -- J3: individual, vencedor (5 pts / R$ 10)
   insert into public.jogo (nome, modo, formato, pontos, premio) values ('Quiz do Terror', 'individual', 'vitoria', 5, 10) returning id into j3;
   -- J4: individual, vencedor, ainda sem resultado
@@ -108,7 +108,7 @@ begin
     jsonb_build_object('pessoa_id', elisa, 'colocacao', 2, 'pontos', 25, 'premio', 333.53),
     jsonb_build_object('pessoa_id', carla, 'colocacao', 3, 'premio', 222.41)));
   perform public.fn_admin_registrar_resultado(j2, jsonb_build_array(
-    jsonb_build_object('grupo_id', g2, 'premio', 55.55)));
+    jsonb_build_object('grupo_id', g2, 'premio', 111.10)));   -- dividido por 2: 15 pts e R$ 55,55 cada
   perform public.fn_admin_registrar_resultado(j3, jsonb_build_array(
     jsonb_build_object('pessoa_id', bruno, 'pontos', 10, 'premio', 444.67)));
 
@@ -472,13 +472,13 @@ begin
   update public.resultado set registrado_em = '2026-11-01 00:00+00' where jogo_id = j3;
   v_n := v_n + 1;
 
-  -- placar de grupos (admin): jogo por grupo conta uma vez
+  -- placar de grupos (admin): jogo por grupo conta a soma do que os membros receberam (30 = 15 + 15)
   set local role authenticated;
   v_r := public.fn_admin_placar_grupos();
   reset role;
   select array_agg(format('%s:%s:%s:%s', l->>'nome', l->>'pontos', l->>'vitorias', l->>'posicao') order by o) into v_ordem
     from jsonb_array_elements(v_r) with ordinality t(l, o);
-  assert v_ordem = array['Fantasmas:25:0:1','Bruxas:20:2:2','Vampiros:18:1:3'],
+  assert v_ordem = array['Vampiros:33:1:1','Fantasmas:25:0:2','Bruxas:20:2:3'],
     'FALHOU: placar de grupos: ' || array_to_string(v_ordem, ', ');
   assert (select l->>'premio' from jsonb_array_elements(v_r) l where l->>'nome' = 'Vampiros') = '333.51',
     'FALHOU: prêmio do grupo Vampiros (2 × 55.55 + 222.41)';
@@ -597,7 +597,7 @@ begin
     'FALHOU: ranking final: ' || array_to_string(v_ordem, ', ');
   select array_agg(format('%s:%s', l->>'nome', l->>'pontos') order by o) into v_ordem
     from jsonb_array_elements(v_final->'grupos') with ordinality t(l, o);
-  assert v_ordem = array['Fantasmas:25','Bruxas:20','Vampiros:18'], 'FALHOU: grupos no resultado final';
+  assert v_ordem = array['Vampiros:33','Fantasmas:25','Bruxas:20'], 'FALHOU: grupos no resultado final';
   select l->'vencedores' into v_r from jsonb_array_elements(v_final->'jogos') l where l->>'nome' = 'Caça às Abóboras';
   assert jsonb_array_length(v_r) = 1 and v_r->0->>'nome' = 'Vampiros' and (v_r->0->>'cada')::boolean,
     'FALHOU: vencedor do jogo por grupo aparece uma vez, como grupo';
